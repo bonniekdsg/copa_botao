@@ -89,12 +89,13 @@ Estas regras definem o comportamento esperado do MVP. Onde o futebol de botão t
 - Os jogadores **se alternam**. Uma "vez" (jogada) consiste em lançar **um único botão**.
 - Adota-se a regra clássica dos **três toques**: o mesmo jogador pode encadear **até 3 lances consecutivos** desde que, a cada lance, seu botão **toque a bola**. Se um lance **não tocar a bola**, a vez passa imediatamente ao adversário.
   - *Simplificação alternativa para o MVP (Q2):* pode-se começar com "1 lance por vez" para reduzir complexidade e habilitar os 3 toques em seguida. A decisão deve ser tomada no início do desenvolvimento.
-- O turno termina e passa ao adversário quando: o jogador usou os 3 toques, ou um lance não tocou a bola, ou ocorreu falta, gol, ou bola para fora.
+- O turno termina e passa ao adversário quando: o jogador usou os 3 toques, ou um lance não tocou a bola, ou ocorreu falta ou gol.
 
 ### 4.3 A jogada com a palheta
 
 - O jogador seleciona um botão seu. A **palheta** aparece atrás do botão (do lado oposto à direção desejada).
 - **Mirar e dar força:** o jogador arrasta o cursor/toque para definir **direção** (linha do botão até o ponto de mira) e **força** (distância/deslocamento do arraste, com um teto máximo).
+- **Curvar com os atacantes:** os botões 9, 10 e 11 podem usar trajetória curva para a esquerda ou direita, além da trajetória reta. O usuário toca no atacante, escolhe o tipo de trajetória e faz o arraste; a linha de mira acompanha a curva. A rotação da trajetória termina no primeiro contato do botão.
 - **Empurrar (condução):** lances de força baixa/média servem para **empurrar o botão em direção à bola** e conduzi-la pelo campo.
 - **Chutar:** quando o botão que toca a bola está dentro de uma **região de finalização** definida (ex.: dentro ou próximo à grande área adversária), o contato botão→bola é tratado como **chute**, transferindo mais energia à bola em direção ao gol. Fora dessa região, o contato é um **passe/condução** comum.
 - Ao **soltar**, o botão é lançado; nenhum novo comando é aceito até tudo parar.
@@ -147,6 +148,7 @@ Prioridade: **P0** = essencial para o MVP; **P1** = desejável no MVP se houver 
 | RF-05 | Exibir a palheta atrás do botão selecionado. | P0 |
 | RF-06 | Capturar arraste (mouse/toque) para definir direção e força, com indicador visual de mira e potência. | P0 |
 | RF-07 | Lançar o botão ao soltar, aplicando força proporcional ao arraste (com teto máximo). | P0 |
+| RF-07A | Permitir que os jogadores 9, 10 e 11 escolham trajetória curva à esquerda, reta ou curva à direita, com previsão visual e validação no servidor online. | P0 |
 | RF-08 | Simular física: movimento, atrito/desaceleração, colisões botão↔bola, botão↔botão, e ricochete nas bordas. | P0 |
 | RF-09 | Detectar quando todos os corpos pararam para encerrar o lance. | P0 |
 | RF-10 | Detectar contato botão↔bola e classificar como passe ou chute conforme a região de finalização. | P0 |

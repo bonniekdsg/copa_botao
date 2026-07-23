@@ -15,6 +15,8 @@
   const MAX_DRAG = 205;
   const MAX_SPEED = 1420;
   const BALL_EDGE_RESTITUTION = 0.68;
+  const CURVE_RATE = 0.72;
+  const CURVE_ATTACKERS = [9, 10, 11];
   const CARD_THRESHOLD = { yellow: MAX_SPEED * 0.3, red: MAX_SPEED * 0.7 };
   const STOP_SPEED = 14;
   const FRICTION = { player: 520, ball: 420 };
@@ -55,6 +57,8 @@
     powerFill: document.querySelector('#powerFill'),
     powerText: document.querySelector('#powerText'),
     cancelButton: document.querySelector('#cancelButton'),
+    curveControl: document.querySelector('#curveControl'),
+    curveButtons: [...document.querySelectorAll('[data-curve]')],
     turnStrip: document.querySelector('#turnStrip'),
     turnText: document.querySelector('#turnText'),
     touchText: document.querySelector('#touchText'),
@@ -113,6 +117,8 @@
     selected: null,
     pointerId: null,
     dragPoint: null,
+    aimCurve: 0,
+    shotCurve: 0,
     launchPlayer: null,
     ballTouched: false,
     firstContact: null,
@@ -627,6 +633,8 @@
       makePlayer(1, 11, 828, 836),
     ].filter((player) => !player.discipline.red);
     state.ball = { type: 'ball', x: WIDTH / 2, y: HEIGHT / 2, vx: 0, vy: 0, radius: BALL_RADIUS, mass: 0.72 };
+    state.aimCurve = 0;
+    state.shotCurve = 0;
     clearAim();
   }
 
@@ -746,6 +754,31 @@
 
   function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 
+  function canCurve(player) {
+    return player?.type === 'player' && CURVE_ATTACKERS.includes(player.number);
+  }
+
+  function updateCurveControl() {
+    const visible = canCurve(state.selected) && ['ready', 'aiming'].includes(state.phase);
+    ui.curveControl.hidden = !visible;
+    for (const button of ui.curveButtons) {
+      const curve = Number(button.dataset.curve);
+      const active = curve === state.aimCurve;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
+    }
+  }
+
+  function setAimCurve(curve) {
+    const normalized = Number(curve);
+    if (!canCurve(state.selected) || ![-1, 0, 1].includes(normalized)) return false;
+    state.aimCurve = normalized;
+    updateCurveControl();
+    updateUI();
+    draw();
+    return true;
+  }
+
   function getPlayerAt(point) {
     let closest = null;
     let best = Infinity;
@@ -777,6 +810,7 @@
       return;
     }
     event.preventDefault();
+    if (state.selected !== selectedBody) state.aimCurve = 0;
     state.selected = selectedBody;
     if (selectedBody.type === 'player' && selectedBody.discipline.yellow > 0) {
       showBanner(`Atenção · ${sideLabel(selectedBody.team)} #${selectedBody.number} já tem amarelo`, 'yellow', 1100);
@@ -787,6 +821,7 @@
     canvas.setPointerCapture?.(event.pointerId);
     canvas.classList.add('aiming');
     ui.cancelButton.disabled = false;
+    updateCurveControl();
     updatePower();
     draw();
   }
@@ -816,10 +851,15 @@
       state.dragPoint = null;
       canvas.classList.remove('aiming');
       ui.powerMeter.classList.remove('show');
+      if (!canCurve(state.selected)) state.selected = null;
+      ui.cancelButton.disabled = !canCurve(state.selected);
+      updateCurveControl();
+      updateUI();
       draw();
       return;
     }
     const speed = (drag / MAX_DRAG) * MAX_SPEED;
+    const shotCurve = canCurve(state.selected) ? state.aimCurve : 0;
     if (online.enabled) {
       const command = {
         type: 'shot',
@@ -828,15 +868,18 @@
         dx,
         dy,
         drag,
+        curve: shotCurve,
       };
       state.phase = 'moving';
       state.pointerId = null;
       state.dragPoint = null;
       state.selected = null;
+      state.aimCurve = 0;
       canvas.classList.remove('aiming');
       canvas.classList.add('locked');
       ui.powerMeter.classList.remove('show');
       ui.cancelButton.disabled = true;
+      updateCurveControl();
       updateUI();
       if (!sendOnline(command)) {
         state.phase = 'ready';
@@ -848,6 +891,7 @@
     state.selected.vx = (dx / drag) * speed;
     state.selected.vy = (dy / drag) * speed;
     state.launchPlayer = state.selected;
+    state.shotCurve = shotCurve;
     state.ballTouched = false;
     state.firstContact = null;
     state.foul = false;
@@ -860,10 +904,12 @@
     state.pointerId = null;
     state.dragPoint = null;
     state.selected = null;
+    state.aimCurve = 0;
     canvas.classList.remove('aiming');
     canvas.classList.add('locked');
     ui.powerMeter.classList.remove('show');
     ui.cancelButton.disabled = true;
+    updateCurveControl();
     updateUI();
   }
 
@@ -871,10 +917,12 @@
     state.selected = null;
     state.dragPoint = null;
     state.pointerId = null;
+    state.aimCurve = 0;
     if (state.phase === 'aiming') state.phase = 'ready';
     canvas.classList.remove('aiming');
     ui.powerMeter.classList.remove('show');
     ui.cancelButton.disabled = true;
+    updateCurveControl();
   }
 
   function updatePower() {
@@ -890,6 +938,15 @@
     const bodies = [...state.players, state.ball];
     const previousBall = { x: state.ball.x, y: state.ball.y };
     for (const body of bodies) {
+      if (body === state.launchPlayer && state.firstContact === null && state.shotCurve !== 0) {
+        const angle = state.shotCurve * CURVE_RATE * dt;
+        const cosine = Math.cos(angle);
+        const sine = Math.sin(angle);
+        const vx = body.vx;
+        const vy = body.vy;
+        body.vx = vx * cosine - vy * sine;
+        body.vy = vx * sine + vy * cosine;
+      }
       body.x += body.vx * dt;
       body.y += body.vy * dt;
       const speed = Math.hypot(body.vx, body.vy);
@@ -1202,6 +1259,7 @@
 
     if (isMatchOver()) { finishMatch(); return; }
     state.launchPlayer = null;
+    state.shotCurve = 0;
     state.pendingOutcome = null;
     updateUI();
   }
@@ -1244,6 +1302,7 @@
   }
 
   function finishMatch() {
+    state.shotCurve = 0;
     state.phase = 'finished';
     stopCrowdAmbient();
     playSound('final');
@@ -1350,6 +1409,8 @@
       ? '<strong>Aguarde:</strong> o lance termina quando todas as peças pararem.'
       : online.enabled && state.phase === 'ready' && state.activeTeam !== online.side
         ? '<strong>Partida online:</strong> aguarde a jogada do adversário.'
+        : canCurve(state.selected)
+          ? `<strong>Atacante #${state.selected.number}:</strong> escolha esquerda, reta ou direita e arraste para chutar.`
         : '<strong>Como jogar:</strong> arraste um botão para trás e solte para lançar.';
   }
 
@@ -1472,23 +1533,41 @@
     const nx = dx / drag;
     const ny = dy / drag;
     const projected = 105 + (drag / MAX_DRAG) * 170;
-    const endX = player.x + nx * projected;
-    const endY = player.y + ny * projected;
+    const startX = player.x + nx * (player.radius + 8);
+    const startY = player.y + ny * (player.radius + 8);
+    const curve = canCurve(player) ? state.aimCurve : 0;
+    const perpendicularX = -ny;
+    const perpendicularY = nx;
+    let endX = player.x + nx * projected;
+    let endY = player.y + ny * projected;
+    let tangentX = nx;
+    let tangentY = ny;
 
     ctx.save();
     ctx.setLineDash([10, 10]);
     ctx.lineWidth = 4;
     ctx.strokeStyle = 'rgba(196,244,94,.9)';
     ctx.beginPath();
-    ctx.moveTo(player.x + nx * (player.radius + 8), player.y + ny * (player.radius + 8));
-    ctx.lineTo(endX, endY);
+    ctx.moveTo(startX, startY);
+    if (curve === 0) {
+      ctx.lineTo(endX, endY);
+    } else {
+      const controlX = startX + nx * projected * 0.56;
+      const controlY = startY + ny * projected * 0.56;
+      endX = startX + nx * projected * 0.84 + perpendicularX * curve * projected * 0.46;
+      endY = startY + ny * projected * 0.84 + perpendicularY * curve * projected * 0.46;
+      ctx.quadraticCurveTo(controlX, controlY, endX, endY);
+      const tangentLength = Math.hypot(endX - controlX, endY - controlY) || 1;
+      tangentX = (endX - controlX) / tangentLength;
+      tangentY = (endY - controlY) / tangentLength;
+    }
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = '#c4f45e';
     ctx.beginPath();
-    ctx.moveTo(endX + nx * 14, endY + ny * 14);
-    ctx.lineTo(endX - ny * 11, endY + nx * 11);
-    ctx.lineTo(endX + ny * 11, endY - nx * 11);
+    ctx.moveTo(endX + tangentX * 14, endY + tangentY * 14);
+    ctx.lineTo(endX - tangentY * 11, endY + tangentX * 11);
+    ctx.lineTo(endX + tangentY * 11, endY - tangentX * 11);
     ctx.closePath();
     ctx.fill();
 
@@ -1687,6 +1766,9 @@
     showStartScreen();
   });
   ui.cancelButton.addEventListener('click', () => { clearAim(); draw(); });
+  for (const button of ui.curveButtons) {
+    button.addEventListener('click', () => setAimCurve(button.dataset.curve));
+  }
   ui.eventBannerClose.addEventListener('click', closeCurrentBanner);
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') { clearAim(); document.querySelector('#rulesDialog').close?.(); draw(); }
@@ -1774,10 +1856,12 @@
     evaluatePlay,
     completeGoalCelebration,
     resetFormation,
+    canCurve,
+    setAimCurve,
     showBanner,
     closeCurrentBanner,
     clearBannerQueue,
     online,
-    constants: { WIDTH, HEIGHT, FIELD, GOAL, GOAL_LINE, PENALTY_AREA, FRICTION, STOP_SPEED, MAX_SPEED, MAX_DRAG, BALL_EDGE_RESTITUTION, CARD_THRESHOLD, TEAM_OPTIONS },
+    constants: { WIDTH, HEIGHT, FIELD, GOAL, GOAL_LINE, PENALTY_AREA, FRICTION, STOP_SPEED, MAX_SPEED, MAX_DRAG, BALL_EDGE_RESTITUTION, CURVE_RATE, CURVE_ATTACKERS, CARD_THRESHOLD, TEAM_OPTIONS },
   };
 })();

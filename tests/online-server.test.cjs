@@ -104,7 +104,7 @@ function createClient() {
     assert.equal(rejected.message, 'Não é a sua vez.', 'o servidor deve rejeitar ações do adversário');
 
     const activeClient = toss.winner === 0 ? playerOne : playerTwo;
-    activeClient.send({ type: 'shot', bodyType: 'player', number: 10, dx: 100, dy: 0, drag: 80 });
+    activeClient.send({ type: 'shot', bodyType: 'player', number: 10, dx: 100, dy: 0, drag: 80, curve: 1 });
     const moving = await playerOne.waitFor((message) =>
       message.type === 'game-update' && message.state.phase === 'moving',
     );

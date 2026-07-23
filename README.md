@@ -58,6 +58,7 @@ Mantenha apenas uma instância enquanto o jogo não usar armazenamento compartil
 
 - Pressione um botão do time da vez.
 - Arraste na direção oposta ao lance e solte.
+- Para fazer uma curva com os atacantes 9, 10 ou 11, toque uma vez no botão, escolha **Esquerda**, **Reta** ou **Direita** e então faça o arraste. A linha de mira mostra a trajetória escolhida.
 - Use `Esc` ou **Cancelar mira** para desistir antes de soltar.
 - Cada toque válido na bola mantém a posse, até o limite de três.
 - A bola rebate nas laterais e no fundo do campo, permanecendo em jogo.

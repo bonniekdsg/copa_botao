@@ -239,6 +239,12 @@
 
         <div class="game-controls">
           <p id="hintText"><strong>Como jogar:</strong> arraste um botão para trás e solte para lançar.</p>
+          <div class="curve-control" id="curveControl" hidden role="group" aria-label="Tipo de trajetória dos atacantes">
+            <span>Curva 9 · 10 · 11</span>
+            <button type="button" data-curve="-1" aria-label="Curva para a esquerda">↶ Esquerda</button>
+            <button type="button" data-curve="0" class="is-active" aria-label="Trajetória reta">Reta</button>
+            <button type="button" data-curve="1" aria-label="Curva para a direita">Direita ↷</button>
+          </div>
           <span class="network-badge" id="networkBadge" hidden>
             <i aria-hidden="true"></i><span id="networkBadgeText">Online</span>
           </span>
@@ -259,6 +265,7 @@
         <li><span>04</span><div><strong>Faça o gol</strong><p>A bola precisa cruzar completamente a linha entre as traves. Vence quem fizer 3 gols; com 40 lances, vale o placar.</p></div></li>
         <li><span>05</span><div><strong>Evite os cartões</strong><p>Impactos médios geram amarelo; impactos fortes, vermelho direto. O segundo amarelo expulsa o botão da partida.</p></div></li>
         <li><span>06</span><div><strong>Use as bordas</strong><p>A bola rebate nas laterais e no fundo do campo. Aproveite os ricochetes para construir passes e chutes.</p></div></li>
+        <li><span>07</span><div><strong>Faça curvas</strong><p>Toque uma vez no atacante 9, 10 ou 11, escolha esquerda, reta ou direita e depois arraste o botão para definir a força e a direção inicial.</p></div></li>
       </ol>
       <p class="rule-note">A bola permanece em jogo ao atingir as bordas. Só há interrupção quando um gol ou uma falta é confirmado.</p>
     </dialog>

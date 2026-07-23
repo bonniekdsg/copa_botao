@@ -27,6 +27,33 @@ assert.equal(
 );
 runUntilSettled(game);
 
+const rightCurveGame = new ServerGame({ starter: 0 });
+assert.equal(
+  rightCurveGame.shoot(0, { bodyType: 'player', number: 10, dx: 100, dy: 0, drag: 100, curve: 1 }).ok,
+  true,
+  'o servidor deve aceitar curva à direita dos atacantes',
+);
+const rightCurveAttacker = rightCurveGame.state.launchPlayer;
+rightCurveGame.update(1 / 120, Date.now());
+assert.ok(rightCurveAttacker.vy > 0, 'a curva à direita deve girar a trajetória para baixo ao avançar para a direita');
+
+const leftCurveGame = new ServerGame({ starter: 0 });
+assert.equal(
+  leftCurveGame.shoot(0, { bodyType: 'player', number: 9, dx: 100, dy: 0, drag: 100, curve: -1 }).ok,
+  true,
+  'o servidor deve aceitar curva à esquerda dos atacantes',
+);
+const leftCurveAttacker = leftCurveGame.state.launchPlayer;
+leftCurveGame.update(1 / 120, Date.now());
+assert.ok(leftCurveAttacker.vy < 0, 'a curva à esquerda deve girar a trajetória para cima ao avançar para a direita');
+
+const invalidCurveGame = new ServerGame({ starter: 0 });
+assert.equal(
+  invalidCurveGame.shoot(0, { bodyType: 'player', number: 8, dx: 100, dy: 0, drag: 100, curve: 1 }).ok,
+  false,
+  'o servidor deve rejeitar curva de um jogador que não seja 9, 10 ou 11',
+);
+
 const reboundGame = new ServerGame({ starter: 0 });
 reboundGame.state.phase = 'moving';
 reboundGame.state.ball.x = 724;

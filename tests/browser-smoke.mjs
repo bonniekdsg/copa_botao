@@ -319,6 +319,18 @@ assert.equal(
   'gameCanvas',
   'a coordenada do jogador deve apontar para o canvas',
 );
+await command('Input.dispatchMouseEvent', { type: 'mousePressed', ...start, button: 'left', buttons: 1, clickCount: 1 });
+await command('Input.dispatchMouseEvent', { type: 'mouseReleased', ...start, button: 'left', buttons: 0, clickCount: 1 });
+assert.equal(await evaluate('window.__copaBotao.state.phase'), 'ready', 'um toque curto no atacante deve preparar a escolha da curva');
+assert.equal(await evaluate('window.__copaBotao.state.selected?.number'), 10, 'o atacante tocado deve permanecer selecionado');
+assert.equal(await evaluate("document.querySelector('#curveControl').hidden"), false, 'os controles de curva devem aparecer para o atacante 10');
+await evaluate(`document.querySelector('[data-curve="1"]').click()`);
+assert.equal(await evaluate('window.__copaBotao.state.aimCurve'), 1, 'o usuário deve conseguir escolher curva à direita');
+assert.equal(
+  await evaluate(`document.querySelector('[data-curve="1"]').classList.contains('is-active')`),
+  true,
+  'o tipo de curva escolhido deve ficar destacado',
+);
 await evaluate(`window.__inputSeen = [];
   document.querySelector('#gameCanvas').addEventListener('pointerdown', () => window.__inputSeen.push('pointerdown'));
   document.querySelector('#gameCanvas').addEventListener('mousedown', () => window.__inputSeen.push('mousedown'));`);
@@ -329,10 +341,17 @@ assert.equal(
   `pressionar o botão deve iniciar a mira (canvas: ${JSON.stringify(rect)}, ponto: ${JSON.stringify(start)}, eventos: ${await evaluate('window.__inputSeen.join()')})`,
 );
 await command('Input.dispatchMouseEvent', { type: 'mouseMoved', ...pull, button: 'left', buttons: 1 });
+const curveScreenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
+await writeFile(
+  mobile ? '/tmp/copa-botao-curve-mobile.png' : '/tmp/copa-botao-curve.png',
+  Buffer.from(curveScreenshot.data, 'base64'),
+);
 await command('Input.dispatchMouseEvent', { type: 'mouseReleased', ...pull, button: 'left', buttons: 0, clickCount: 1 });
 await new Promise((resolve) => setTimeout(resolve, 150));
 
 assert.equal(await evaluate('window.__copaBotao.state.shots'), 1, 'arrastar e soltar deve registrar um lance');
+assert.equal(await evaluate('window.__copaBotao.state.shotCurve'), 1, 'o lance deve preservar a curva escolhida durante o movimento');
+assert.equal(await evaluate("document.querySelector('#curveControl').hidden"), true, 'os controles de curva devem sumir depois do chute');
 assert.notEqual(await evaluate('window.__copaBotao.state.phase'), 'aiming', 'soltar deve encerrar a mira');
 
 await evaluate(`(() => {

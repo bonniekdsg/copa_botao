@@ -810,9 +810,43 @@ body:not(.game-active) .board-wrap {
 .result-card > p { margin: 0 0 23px; color: var(--muted); font: 700 20px Manrope, sans-serif; }
 .result-card .primary-button { width: min(270px, 100%); margin-bottom: 6px; }
 
-.game-controls { min-height: 54px; display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 13px 4px 0; }
+.game-controls { min-height: 54px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px 20px; padding: 13px 4px 0; }
 .game-controls p { margin: 0; color: var(--muted); font-size: 12px; }
 .game-controls p strong { color: #dce3de; }
+.curve-control {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px;
+  color: #dce3de;
+  background: rgba(255,255,255,.045);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.curve-control[hidden] { display: none; }
+.curve-control > span {
+  padding: 0 6px;
+  color: var(--lime);
+  font: 800 9px Manrope, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.curve-control button {
+  min-height: 30px;
+  padding: 5px 9px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font: 800 10px Manrope, sans-serif;
+}
+.curve-control button:hover { color: white; background: rgba(255,255,255,.07); }
+.curve-control button.is-active {
+  color: #172006;
+  background: var(--lime);
+  border-color: rgba(255,255,255,.4);
+}
+.curve-control button:focus-visible { outline: 3px solid white; outline-offset: 2px; }
 .secondary-button { flex: 0 0 auto; padding: 8px 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; font-size: 11px; }
 .secondary-button:disabled { opacity: .35; cursor: default; }
 kbd { padding: 2px 4px; margin-left: 4px; color: #89938c; background: rgba(255,255,255,.07); border: 1px solid var(--line); border-radius: 4px; font: inherit; font-size: 9px; }
@@ -902,6 +936,9 @@ kbd { padding: 2px 4px; margin-left: 4px; color: #89938c; background: rgba(255,2
   .coin-card > p strong { font-size: 20px; }
   .game-controls { align-items: flex-start; }
   .game-controls p { font-size: 10px; }
+  .curve-control { order: 1; width: 100%; justify-content: center; }
+  .curve-control > span { display: none; }
+  .curve-control button { flex: 1; min-height: 36px; }
   .secondary-button { padding: 7px; }
   .secondary-button kbd { display: none; }
 }

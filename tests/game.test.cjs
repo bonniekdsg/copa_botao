@@ -109,6 +109,26 @@ for (const team of [0, 1]) {
 }
 assert.deepEqual([game.ball.x, game.ball.y], [724, 543], 'a bola começa no centro');
 assert.deepEqual(api.constants.FRICTION, { player: 520, ball: 420 }, 'o campo deve desacelerar rapidamente jogadores e bola');
+const curveAttacker = game.players.find((player) => player.team === 0 && player.number === 10);
+game.phase = 'ready';
+game.selected = curveAttacker;
+assert.equal(api.setAimCurve(1), true, 'o atacante 10 deve aceitar curva à direita');
+assert.equal(game.aimCurve, 1, 'a escolha da curva deve ficar registrada na mira');
+game.selected = game.players.find((player) => player.team === 0 && player.number === 8);
+game.aimCurve = 0;
+assert.equal(api.setAimCurve(1), false, 'um jogador que não seja 9, 10 ou 11 não deve aceitar curva');
+curveAttacker.x = 724;
+curveAttacker.y = 100;
+curveAttacker.vx = 500;
+curveAttacker.vy = 0;
+game.launchPlayer = curveAttacker;
+game.shotCurve = 1;
+game.firstContact = null;
+game.phase = 'moving';
+api.update(1 / 120);
+assert.ok(curveAttacker.vy > 0, 'a física local deve curvar a trajetória do atacante para a direita');
+api.resetFormation();
+game.phase = 'ready';
 
 const leftKeeper = game.players.find((player) => player.team === 0 && player.keeper);
 const rightKeeper = game.players.find((player) => player.team === 1 && player.keeper);

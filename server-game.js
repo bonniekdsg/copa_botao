@@ -11,6 +11,8 @@ const BALL_RADIUS = 18;
 const MAX_DRAG = 205;
 const MAX_SPEED = 1420;
 const BALL_EDGE_RESTITUTION = 0.68;
+const CURVE_RATE = 0.72;
+const CURVE_ATTACKERS = [9, 10, 11];
 const CARD_THRESHOLD = { yellow: MAX_SPEED * 0.3, red: MAX_SPEED * 0.7 };
 const STOP_SPEED = 14;
 const FRICTION = { player: 520, ball: 420 };
@@ -33,6 +35,7 @@ class ServerGame {
       touchesUsed: 0,
       shots: 0,
       launchPlayer: null,
+      shotCurve: 0,
       ballTouched: false,
       firstContact: null,
       foul: false,
@@ -104,6 +107,7 @@ class ServerGame {
       mass: 0.72,
     };
     this.state.launchPlayer = null;
+    this.state.shotCurve = 0;
   }
 
   teamName(side) {
@@ -167,6 +171,12 @@ class ServerGame {
       if (!selected) return { ok: false, error: 'Botão inválido.' };
     }
 
+    const curve = Number(command.curve ?? 0);
+    if (![-1, 0, 1].includes(curve)) return { ok: false, error: 'Curva inválida.' };
+    if (curve !== 0 && !CURVE_ATTACKERS.includes(selected.number)) {
+      return { ok: false, error: 'Somente os jogadores 9, 10 e 11 podem fazer curvas.' };
+    }
+
     const dx = Number(command.dx);
     const dy = Number(command.dy);
     const requestedDrag = Number(command.drag);
@@ -179,6 +189,7 @@ class ServerGame {
     selected.vx = (dx / vectorLength) * speed;
     selected.vy = (dy / vectorLength) * speed;
     state.launchPlayer = selected;
+    state.shotCurve = curve;
     state.ballTouched = false;
     state.firstContact = null;
     state.foul = false;
@@ -206,6 +217,15 @@ class ServerGame {
     const bodies = [...state.players, state.ball];
     const previousBall = { x: state.ball.x, y: state.ball.y };
     for (const body of bodies) {
+      if (body === state.launchPlayer && state.firstContact === null && state.shotCurve !== 0) {
+        const angle = state.shotCurve * CURVE_RATE * dt;
+        const cosine = Math.cos(angle);
+        const sine = Math.sin(angle);
+        const vx = body.vx;
+        const vy = body.vy;
+        body.vx = vx * cosine - vy * sine;
+        body.vy = vx * sine + vy * cosine;
+      }
       body.x += body.vx * dt;
       body.y += body.vy * dt;
       const speed = Math.hypot(body.vx, body.vy);
@@ -534,6 +554,7 @@ class ServerGame {
       return;
     }
     state.launchPlayer = null;
+    state.shotCurve = 0;
     state.pendingOutcome = null;
   }
 
@@ -563,6 +584,7 @@ class ServerGame {
 
   finishMatch() {
     if (this.state.phase === 'finished') return;
+    this.state.shotCurve = 0;
     this.state.phase = 'finished';
     const [a, b] = this.state.score;
     const winner = a === b ? null : a > b ? 0 : 1;
@@ -588,6 +610,8 @@ module.exports = {
     MAX_DRAG,
     MAX_SPEED,
     BALL_EDGE_RESTITUTION,
+    CURVE_RATE,
+    CURVE_ATTACKERS,
     CARD_THRESHOLD,
     STOP_SPEED,
     FRICTION,
