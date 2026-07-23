@@ -75,6 +75,46 @@ await command('Page.navigate', { url: 'http://127.0.0.1:4173' });
 await loaded;
 
 assert.equal(await evaluate('typeof window.__copaBotao'), 'object', 'a API do jogo deve carregar');
+await evaluate(`(() => {
+  const api = window.__copaBotao;
+  api.clearBannerQueue();
+  api.showBanner('Lateral para a Argentina', 'neutral', 10000, {
+    dismissible: true,
+    actionLabel: 'Fechar',
+  });
+  api.showBanner('Cartão amarelo', 'yellow', 10000, {
+    dismissible: true,
+    actionLabel: 'Continuar',
+  });
+})()`);
+assert.equal(
+  await evaluate(`document.querySelector('#eventBannerText').textContent`),
+  'Lateral para a Argentina',
+  'a primeira notificação deve permanecer visível',
+);
+assert.equal(
+  await evaluate(`window.__copaBotao.state.bannerQueue.length`),
+  1,
+  'a notificação seguinte deve aguardar na fila',
+);
+assert.equal(
+  await evaluate(`document.querySelector('#eventBannerClose').textContent`),
+  'Fechar',
+  'ocorrências comuns devem oferecer fechamento antecipado',
+);
+await evaluate(`document.querySelector('#eventBannerClose').click()`);
+await evaluate(`new Promise((resolve) => setTimeout(resolve, 280))`);
+assert.equal(
+  await evaluate(`document.querySelector('#eventBannerText').textContent`),
+  'Cartão amarelo',
+  'a segunda notificação deve aparecer após fechar a primeira',
+);
+assert.equal(
+  await evaluate(`document.querySelector('#eventBannerClose').textContent`),
+  'Continuar',
+  'cartões devem oferecer a ação Continuar',
+);
+await evaluate(`window.__copaBotao.clearBannerQueue()`);
 assert.ok(
   await evaluate(`performance.getEntriesByType('resource').some((entry) => entry.name.endsWith('/assets/bola.webp'))`),
   'a textura da bola deve ser carregada pelo navegador',

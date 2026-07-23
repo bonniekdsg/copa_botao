@@ -67,6 +67,8 @@ Mantenha apenas uma instância enquanto o jogo não usar armazenamento compartil
 - Cada goleiro pode ser lançado normalmente, mas permanece dentro da grande área do seu time.
 - Atingir um rival antes da bola é falta. Impactos médios geram amarelo, impactos fortes geram vermelho direto e o segundo amarelo expulsa o botão.
 
+Laterais e outras reposições exibem um aviso por 3 segundos; faltas simples, por 3,5 segundos; e cartões, por 5 segundos. Os avisos entram em uma fila para não se sobrescreverem e podem ser fechados antes. Alertas de conexão permanecem visíveis até a reconexão.
+
 Vence quem marcar três gols. Ao marcar, a imagem de comemoração ocupa a tela por alguns segundos; depois, o campo retorna para a nova saída. Se ninguém chegar a três, a partida termina após 40 lances.
 
 O áudio usa os arquivos da pasta `assets`: `sound_background.mp3` exclusivamente como ambiente da tela inicial, clique nos controles, chute ao atingir a bola, apito na abertura da partida, após cada gol e quando a bola sai pelas laterais ou linhas de fundo, torcida ambiente em repetição durante o jogo e `final.mp3` no encerramento.

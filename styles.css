@@ -139,6 +139,11 @@ body:not(.game-active) .board-wrap {
   top: 22px;
   left: 50%;
   z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: calc(100% - 32px);
   transform: translate(-50%, -14px) scale(.95);
   padding: 10px 18px;
   color: #08120c;
@@ -153,6 +158,22 @@ body:not(.game-active) .board-wrap {
   transition: .22s ease;
 }
 .event-banner.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+.event-banner.show.is-dismissible { pointer-events: auto; }
+.event-banner__text { min-width: 0; text-align: center; }
+.event-banner__close {
+  flex: 0 0 auto;
+  padding: 6px 11px;
+  color: inherit;
+  background: rgba(255,255,255,.28);
+  border: 1px solid rgba(0,0,0,.18);
+  border-radius: 99px;
+  font: 800 11px Manrope, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  cursor: pointer;
+}
+.event-banner__close:hover { background: rgba(255,255,255,.45); }
+.event-banner__close:focus-visible { outline: 3px solid white; outline-offset: 2px; }
 .event-banner.danger { color: white; background: #da342f; }
 .event-banner.yellow { color: #251b00; background: #ffd447; }
 .event-banner.goal { color: #172006; padding: 13px 24px; font-size: 19px; }

@@ -84,7 +84,10 @@
 
         <div class="board-wrap" id="boardWrap">
           <canvas id="gameCanvas" width="1448" height="1086" aria-label="Campo de futebol de botão"></canvas>
-          <div class="event-banner" id="eventBanner" role="status" aria-live="assertive"></div>
+          <div class="event-banner" id="eventBanner" role="status" aria-live="assertive" aria-hidden="true">
+            <span class="event-banner__text" id="eventBannerText"></span>
+            <button class="event-banner__close" id="eventBannerClose" type="button" hidden>Fechar</button>
+          </div>
           <div class="goal-overlay" id="goalOverlay" hidden role="status" aria-label="Gol">
             <img src="assets/gol.webp" alt="Gooooool!" />
           </div>

@@ -49,6 +49,8 @@
     resultTitle: document.querySelector('#resultTitle'),
     resultScore: document.querySelector('#resultScore'),
     eventBanner: document.querySelector('#eventBanner'),
+    eventBannerText: document.querySelector('#eventBannerText'),
+    eventBannerClose: document.querySelector('#eventBannerClose'),
     goalOverlay: document.querySelector('#goalOverlay'),
     powerMeter: document.querySelector('#powerMeter'),
     powerFill: document.querySelector('#powerFill'),
@@ -124,6 +126,10 @@
     pendingOutcome: null,
     stillFrames: 0,
     bannerTimer: 0,
+    bannerTransitionTimer: 0,
+    bannerQueue: [],
+    currentBanner: null,
+    bannerSequence: 0,
     goalTimer: 0,
     goalEndsMatch: false,
     sounds: true,
@@ -247,6 +253,7 @@
       socket.addEventListener('open', () => {
         online.connecting = null;
         online.reconnectAttempts = 0;
+        dismissBannerByKey('network');
         setNetworkBadge(online.roomCode ? 'online' : null, online.roomCode ? `Sala ${online.roomCode}` : '');
         setOnlineStatus('Servidor conectado.');
         if (reconnecting && online.roomCode && online.token) {
@@ -275,7 +282,10 @@
     online.reconnectAttempts += 1;
     const delay = Math.min(5000, 500 * (2 ** Math.min(online.reconnectAttempts, 4)));
     setNetworkBadge('reconnecting', 'Reconectando…');
-    showBanner('Conexão perdida · tentando reconectar', 'yellow', 1800);
+    showBanner('Conexão perdida · tentando reconectar', 'yellow', 0, {
+      key: 'network',
+      dismissible: false,
+    });
     online.reconnectTimer = window.setTimeout(() => {
       connectOnline(true).catch(() => scheduleReconnect());
     }, delay);
@@ -412,6 +422,7 @@
   }
 
   function startOnlineMatch(snapshot, reconnecting = false) {
+    clearBannerQueue();
     online.enabled = true;
     state.mode = 'online';
     document.body.classList.add('game-active');
@@ -453,13 +464,21 @@
         hideGoalCelebration();
       } else if (event.type === 'ball-out') {
         playSound('whistle');
-        showBanner(event.text, 'neutral', 1700);
+        showBanner(event.text, 'neutral', 3000, {
+          dismissible: true,
+          actionLabel: 'Fechar',
+        });
       } else if (event.type === 'discipline') {
         playSound(event.decisionType === 'yellow' ? 'yellowCard' : event.decisionType === 'red' ? 'redCard' : 'foul');
+        const isCard = event.decisionType === 'yellow' || event.decisionType === 'red';
         showBanner(
           event.text,
           event.decisionType === 'yellow' ? 'yellow' : event.decisionType === 'red' ? 'danger' : 'neutral',
-          1500,
+          isCard ? 5000 : 3500,
+          {
+            dismissible: true,
+            actionLabel: isCard ? 'Continuar' : 'Fechar',
+          },
         );
       } else if (event.type === 'banner') {
         showBanner(event.text, event.kind, event.duration);
@@ -501,16 +520,28 @@
     } else if (message.type === 'player-status') {
       if (!message.connected && message.side !== online.side) {
         setNetworkBadge('reconnecting', 'Adversário reconectando…');
-        showBanner('Adversário desconectado · aguardando retorno', 'yellow', 2200);
+        showBanner('Adversário desconectado · aguardando retorno', 'yellow', 0, {
+          key: 'opponent-network',
+          dismissible: false,
+        });
       } else if (message.connected) {
+        dismissBannerByKey('opponent-network');
         setNetworkBadge('online', `Sala ${online.roomCode} · Jogador ${online.side + 1}`);
       }
     } else if (message.type === 'opponent-left') {
+      dismissBannerByKey('opponent-network');
       setNetworkBadge('offline', 'Adversário saiu');
-      showBanner(message.message, 'danger', 2500);
+      showBanner(message.message, 'danger', 0, {
+        key: 'opponent-left',
+        dismissible: true,
+        actionLabel: 'Fechar',
+      });
     } else if (message.type === 'error') {
       setOnlineStatus(message.message, true);
-      showBanner(message.message, 'danger', 1800);
+      showBanner(message.message, 'danger', 4000, {
+        dismissible: true,
+        actionLabel: 'Fechar',
+      });
     }
   }
 
@@ -615,6 +646,7 @@
 
   function startMatch(starter = state.startingTeam) {
     clearFlowTimers();
+    clearBannerQueue();
     hideGoalCelebration();
     state.goalEndsMatch = false;
     stopMenuBackground();
@@ -646,6 +678,7 @@
 
   function showStartScreen() {
     clearFlowTimers();
+    clearBannerQueue();
     hideGoalCelebration();
     state.goalEndsMatch = false;
     stopCrowdAmbient();
@@ -1164,13 +1197,25 @@
       }
       playSound(decision.type === 'yellow' ? 'yellowCard' : decision.type === 'red' ? 'redCard' : 'foul');
       switchTurn();
-      showBanner(decision.text, decision.type === 'yellow' ? 'yellow' : decision.type === 'red' ? 'danger' : 'neutral', 1500);
+      const isCard = decision.type === 'yellow' || decision.type === 'red';
+      showBanner(
+        decision.text,
+        decision.type === 'yellow' ? 'yellow' : decision.type === 'red' ? 'danger' : 'neutral',
+        isCard ? 5000 : 3500,
+        {
+          dismissible: true,
+          actionLabel: isCard ? 'Continuar' : 'Fechar',
+        },
+      );
     } else if (outcome?.type === 'out') {
       state.teamFoulStreak[actingTeam] = 0;
       playSound('whistle');
       const restart = prepareRestart(outcome, actingTeam);
       state.phase = 'ready';
-      showBanner(restart.message, 'neutral', 1700);
+      showBanner(restart.message, 'neutral', 3000, {
+        dismissible: true,
+        actionLabel: 'Fechar',
+      });
     } else if (state.ballTouched && !state.ownBlock) {
       state.teamFoulStreak[actingTeam] = 0;
       state.touchesUsed += 1;
@@ -1301,11 +1346,72 @@
     updateUI();
   }
 
-  function showBanner(text, kind = 'neutral', duration = 900) {
+  function displayNextBanner() {
+    if (state.currentBanner || state.bannerQueue.length === 0) return;
+    const banner = state.bannerQueue.shift();
+    state.currentBanner = banner;
+    ui.eventBannerText.textContent = banner.text;
+    ui.eventBannerClose.textContent = banner.actionLabel;
+    ui.eventBannerClose.hidden = !banner.dismissible;
+    ui.eventBanner.className = `event-banner show ${banner.kind}${banner.dismissible ? ' is-dismissible' : ''}`;
+    ui.eventBanner.setAttribute('aria-hidden', 'false');
+    if (banner.duration > 0) {
+      state.bannerTimer = window.setTimeout(closeCurrentBanner, banner.duration);
+    }
+  }
+
+  function closeCurrentBanner() {
+    if (!state.currentBanner) return;
     window.clearTimeout(state.bannerTimer);
-    ui.eventBanner.textContent = text;
-    ui.eventBanner.className = `event-banner show ${kind}`;
-    state.bannerTimer = window.setTimeout(() => { ui.eventBanner.className = 'event-banner'; }, duration);
+    window.clearTimeout(state.bannerTransitionTimer);
+    state.bannerTimer = 0;
+    ui.eventBanner.classList.remove('show');
+    ui.eventBanner.setAttribute('aria-hidden', 'true');
+    state.bannerTransitionTimer = window.setTimeout(() => {
+      state.currentBanner = null;
+      ui.eventBanner.className = 'event-banner';
+      ui.eventBannerClose.hidden = true;
+      displayNextBanner();
+    }, 230);
+  }
+
+  function dismissBannerByKey(key) {
+    if (!key) return;
+    state.bannerQueue = state.bannerQueue.filter((banner) => banner.key !== key);
+    if (state.currentBanner?.key === key) closeCurrentBanner();
+  }
+
+  function clearBannerQueue() {
+    window.clearTimeout(state.bannerTimer);
+    window.clearTimeout(state.bannerTransitionTimer);
+    state.bannerTimer = 0;
+    state.bannerTransitionTimer = 0;
+    state.bannerQueue = [];
+    state.currentBanner = null;
+    ui.eventBanner.className = 'event-banner';
+    ui.eventBanner.setAttribute('aria-hidden', 'true');
+    ui.eventBannerClose.hidden = true;
+  }
+
+  function showBanner(text, kind = 'neutral', duration = 900, options = {}) {
+    const key = options.key || null;
+    if (key && state.currentBanner?.key === key) {
+      state.currentBanner.text = text;
+      ui.eventBannerText.textContent = text;
+      return;
+    }
+    if (key && state.bannerQueue.some((banner) => banner.key === key)) return;
+    const banner = {
+      id: ++state.bannerSequence,
+      text,
+      kind,
+      duration: Number.isFinite(duration) ? Math.max(0, duration) : 900,
+      dismissible: Boolean(options.dismissible),
+      actionLabel: options.actionLabel || 'Fechar',
+      key,
+    };
+    state.bannerQueue.push(banner);
+    displayNextBanner();
   }
 
   function updateUI() {
@@ -1687,6 +1793,7 @@
     showStartScreen();
   });
   ui.cancelButton.addEventListener('click', () => { clearAim(); draw(); });
+  ui.eventBannerClose.addEventListener('click', closeCurrentBanner);
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') { clearAim(); document.querySelector('#rulesDialog').close?.(); draw(); }
   });
@@ -1773,6 +1880,9 @@
     evaluatePlay,
     completeGoalCelebration,
     resetFormation,
+    showBanner,
+    closeCurrentBanner,
+    clearBannerQueue,
     online,
     constants: { WIDTH, HEIGHT, FIELD, GOAL, GOAL_LINE, PENALTY_AREA, GOAL_AREA, FRICTION, STOP_SPEED, MAX_SPEED, MAX_DRAG, DIRECT_BALL_MAX_DRAG, CARD_THRESHOLD, TEAM_OPTIONS },
   };
