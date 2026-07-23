@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { ServerGame, constants } = require('../server-game');
+const { ServerGame, constants, curveAngleForDrag } = require('../server-game');
 
 function runUntilSettled(game, maxSteps = 5000) {
   let now = Date.now();
@@ -13,6 +13,14 @@ function runUntilSettled(game, maxSteps = 5000) {
 }
 
 const game = new ServerGame({ starter: 0, teamChoices: [0, 0] });
+const expectedAngles = [0.2, 0.4, 0.6, 0.8, 1].map((force) =>
+  curveAngleForDrag(constants.MAX_DRAG * force) * (180 / Math.PI),
+);
+assert.deepEqual(
+  expectedAngles.map((angle) => Math.round(angle)),
+  [7, 17, 27, 38, 50],
+  'o servidor deve calcular progressivamente o ângulo a partir da força',
+);
 assert.equal(game.state.players.length, 22, 'o servidor deve criar os dois times completos');
 assert.deepEqual(game.state.teamChoices, [0, 0], 'o servidor deve preservar times repetidos');
 assert.equal(
@@ -68,15 +76,16 @@ limitedCurveGame.state.ball.vx = 700;
 limitedCurveGame.state.ball.vy = 0;
 limitedCurveGame.state.ballCurve = 1;
 limitedCurveGame.state.ballCurveRemaining = constants.BALL_CURVE_MAX_ANGLE;
+limitedCurveGame.state.ballCurveRate = constants.BALL_CURVE_MAX_ANGLE / constants.BALL_CURVE_DURATION;
 for (let index = 0; index < 120 && limitedCurveGame.state.ballCurve !== 0; index += 1) {
   limitedCurveGame.applyBallCurve(1 / 120);
 }
 const finalCurveAngle = Math.atan2(limitedCurveGame.state.ball.vy, limitedCurveGame.state.ball.vx);
 assert.ok(
   finalCurveAngle <= constants.BALL_CURVE_MAX_ANGLE + 0.001,
-  'a curva da bola não deve ultrapassar o limite de 40 graus',
+  'a curva da bola não deve ultrapassar o limite de 50 graus',
 );
-assert.ok(finalCurveAngle > 0.65, 'a curva completa de 40 graus deve ser claramente perceptível');
+assert.ok(finalCurveAngle > 0.83, 'a curva completa de 50 graus deve ser claramente perceptível');
 
 const invalidCurveGame = new ServerGame({ starter: 0 });
 assert.equal(

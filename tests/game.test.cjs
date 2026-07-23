@@ -118,6 +118,13 @@ game.selected = game.players.find((player) => player.team === 0 && player.number
 game.aimCurve = 0;
 assert.equal(api.setAimCurve(1), false, 'um jogador que não seja 9, 10 ou 11 não deve aceitar curva');
 const curveDrag = 100;
+const curveAt20Percent = api.curveAngleForDrag(api.constants.MAX_DRAG * 0.2);
+const curveAt100Percent = api.curveAngleForDrag(api.constants.MAX_DRAG);
+assert.ok(curveAt20Percent > 0.11 && curveAt20Percent < 0.14, '20% de força deve produzir cerca de 7 graus');
+assert.ok(
+  Math.abs(curveAt100Percent - api.constants.BALL_CURVE_MAX_ANGLE) < 0.0001,
+  '100% de força deve produzir a curva máxima de 50 graus',
+);
 const originalPlayers = game.players;
 const pathBlocker = originalPlayers.find((player) => player !== curveAttacker);
 game.ball.x = 500;
@@ -162,6 +169,7 @@ curveAttacker.vx = (curveDrag / api.constants.MAX_DRAG) * api.constants.MAX_SPEE
 curveAttacker.vy = 0;
 game.launchPlayer = curveAttacker;
 game.shotCurve = 1;
+game.shotCurveAngle = api.curveAngleForDrag(curveDrag);
 game.firstContact = null;
 game.phase = 'moving';
 api.update(1 / 120);

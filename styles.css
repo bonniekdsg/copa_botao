@@ -209,10 +209,10 @@ body:not(.game-active) .board-wrap {
   bottom: 22px;
   z-index: 3;
   display: grid;
-  grid-template-columns: auto minmax(100px, 210px) 40px;
+  grid-template-columns: auto minmax(100px, 210px) 66px;
   align-items: center;
   gap: 10px;
-  width: min(360px, calc(100% - 40px));
+  width: min(386px, calc(100% - 40px));
   padding: 10px 13px;
   color: white;
   background: rgba(5,12,8,.82);

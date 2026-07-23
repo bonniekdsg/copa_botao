@@ -393,6 +393,20 @@ assert.equal(
   `pressionar o botão deve iniciar a mira (canvas: ${JSON.stringify(rect)}, ponto: ${JSON.stringify(start)}, eventos: ${await evaluate('window.__inputSeen.join()')})`,
 );
 await command('Input.dispatchMouseEvent', { type: 'mouseMoved', ...pull, button: 'left', buttons: 1 });
+assert.equal(
+  await evaluate(`(() => {
+    const api = window.__copaBotao;
+    const drag = Math.hypot(
+      api.state.selected.x - api.state.dragPoint.x,
+      api.state.selected.y - api.state.dragPoint.y,
+    );
+    const force = Math.round(Math.min(1, drag / api.constants.MAX_DRAG) * 100);
+    const angle = Math.round(api.curveAngleForDrag(drag) * (180 / Math.PI));
+    return document.querySelector('#powerText').textContent === \`\${force}% · \${angle}°\`;
+  })()`),
+  true,
+  'o medidor deve mostrar a força e o ângulo de curva correspondente',
+);
 assert.ok(
   await evaluate(`(() => {
     const api = window.__copaBotao;

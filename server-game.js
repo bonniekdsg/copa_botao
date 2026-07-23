@@ -12,13 +12,19 @@ const MAX_DRAG = 205;
 const MAX_SPEED = 1420;
 const BALL_EDGE_RESTITUTION = 0.68;
 const BALL_RESTITUTION = 0.83;
-const BALL_CURVE_RATE = 0.78;
-const BALL_CURVE_MAX_ANGLE = Math.PI * (40 / 180);
+const BALL_CURVE_MAX_ANGLE = Math.PI * (50 / 180);
+const BALL_CURVE_DURATION = 0.9;
+const BALL_CURVE_POWER_EXPONENT = 1.2;
 const CURVE_ATTACKERS = [9, 10, 11];
 const CARD_THRESHOLD = { yellow: MAX_SPEED * 0.3, red: MAX_SPEED * 0.7 };
 const STOP_SPEED = 14;
 const FRICTION = { player: 520, ball: 420 };
 const TEAM_NAMES = ['Argentina', 'Espanha'];
+
+function curveAngleForDrag(drag) {
+  const force = Math.min(1, Math.max(0, Number(drag) / MAX_DRAG));
+  return BALL_CURVE_MAX_ANGLE * Math.pow(force, BALL_CURVE_POWER_EXPONENT);
+}
 
 class ServerGame {
   constructor({ starter = 0, teamChoices = [0, 1] } = {}) {
@@ -38,8 +44,10 @@ class ServerGame {
       shots: 0,
       launchPlayer: null,
       shotCurve: 0,
+      shotCurveAngle: 0,
       ballCurve: 0,
       ballCurveRemaining: 0,
+      ballCurveRate: 0,
       ballCurveSource: null,
       ballTouched: false,
       firstContact: null,
@@ -113,6 +121,7 @@ class ServerGame {
     };
     this.state.launchPlayer = null;
     this.state.shotCurve = 0;
+    this.state.shotCurveAngle = 0;
     this.clearBallCurve();
   }
 
@@ -197,6 +206,7 @@ class ServerGame {
     selected.vy = (dy / vectorLength) * speed;
     state.launchPlayer = selected;
     state.shotCurve = curve;
+    state.shotCurveAngle = curve === 0 ? 0 : curveAngleForDrag(drag);
     state.ballTouched = false;
     state.firstContact = null;
     state.foul = false;
@@ -313,6 +323,7 @@ class ServerGame {
   clearBallCurve() {
     this.state.ballCurve = 0;
     this.state.ballCurveRemaining = 0;
+    this.state.ballCurveRate = 0;
     this.state.ballCurveSource = null;
   }
 
@@ -320,7 +331,8 @@ class ServerGame {
     const state = this.state;
     if (!state.shotCurve || !CURVE_ATTACKERS.includes(source?.number)) return;
     state.ballCurve = state.shotCurve;
-    state.ballCurveRemaining = BALL_CURVE_MAX_ANGLE;
+    state.ballCurveRemaining = state.shotCurveAngle;
+    state.ballCurveRate = state.shotCurveAngle / BALL_CURVE_DURATION;
     state.ballCurveSource = source;
   }
 
@@ -332,7 +344,7 @@ class ServerGame {
       this.clearBallCurve();
       return;
     }
-    const step = Math.min(BALL_CURVE_RATE * dt, state.ballCurveRemaining);
+    const step = Math.min(state.ballCurveRate * dt, state.ballCurveRemaining);
     const angle = state.ballCurve * step;
     const cosine = Math.cos(angle);
     const sine = Math.sin(angle);
@@ -600,6 +612,7 @@ class ServerGame {
     }
     state.launchPlayer = null;
     state.shotCurve = 0;
+    state.shotCurveAngle = 0;
     state.pendingOutcome = null;
   }
 
@@ -630,6 +643,7 @@ class ServerGame {
   finishMatch() {
     if (this.state.phase === 'finished') return;
     this.state.shotCurve = 0;
+    this.state.shotCurveAngle = 0;
     this.clearBallCurve();
     this.state.phase = 'finished';
     const [a, b] = this.state.score;
@@ -644,6 +658,7 @@ class ServerGame {
 
 module.exports = {
   ServerGame,
+  curveAngleForDrag,
   constants: {
     WIDTH,
     HEIGHT,
@@ -657,8 +672,9 @@ module.exports = {
     MAX_SPEED,
     BALL_EDGE_RESTITUTION,
     BALL_RESTITUTION,
-    BALL_CURVE_RATE,
     BALL_CURVE_MAX_ANGLE,
+    BALL_CURVE_DURATION,
+    BALL_CURVE_POWER_EXPONENT,
     CURVE_ATTACKERS,
     CARD_THRESHOLD,
     STOP_SPEED,

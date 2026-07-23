@@ -16,8 +16,9 @@
   const MAX_SPEED = 1420;
   const BALL_EDGE_RESTITUTION = 0.68;
   const BALL_RESTITUTION = 0.83;
-  const BALL_CURVE_RATE = 0.78;
-  const BALL_CURVE_MAX_ANGLE = Math.PI * (40 / 180);
+  const BALL_CURVE_MAX_ANGLE = Math.PI * (50 / 180);
+  const BALL_CURVE_DURATION = 0.9;
+  const BALL_CURVE_POWER_EXPONENT = 1.2;
   const CURVE_ATTACKERS = [9, 10, 11];
   const CARD_THRESHOLD = { yellow: MAX_SPEED * 0.3, red: MAX_SPEED * 0.7 };
   const STOP_SPEED = 14;
@@ -121,8 +122,10 @@
     dragPoint: null,
     aimCurve: 0,
     shotCurve: 0,
+    shotCurveAngle: 0,
     ballCurve: 0,
     ballCurveRemaining: 0,
+    ballCurveRate: 0,
     ballCurveSource: null,
     launchPlayer: null,
     ballTouched: false,
@@ -638,6 +641,7 @@
     state.ball = { type: 'ball', x: WIDTH / 2, y: HEIGHT / 2, vx: 0, vy: 0, radius: BALL_RADIUS, mass: 0.72 };
     state.aimCurve = 0;
     state.shotCurve = 0;
+    state.shotCurveAngle = 0;
     clearBallCurve();
     clearAim();
   }
@@ -765,6 +769,11 @@
       vx: vx * cosine - vy * sine,
       vy: vx * sine + vy * cosine,
     };
+  }
+
+  function curveAngleForDrag(drag) {
+    const force = Math.min(1, Math.max(0, Number(drag) / MAX_DRAG));
+    return BALL_CURVE_MAX_ANGLE * Math.pow(force, BALL_CURVE_POWER_EXPONENT);
   }
 
   function canCurve(player) {
@@ -906,6 +915,7 @@
     state.selected.vy = (dy / drag) * speed;
     state.launchPlayer = state.selected;
     state.shotCurve = shotCurve;
+    state.shotCurveAngle = shotCurve === 0 ? 0 : curveAngleForDrag(drag);
     state.ballTouched = false;
     state.firstContact = null;
     state.foul = false;
@@ -941,9 +951,11 @@
 
   function updatePower() {
     if (!state.selected || !state.dragPoint) return;
-    const pct = Math.round(Math.min(1, distance(state.selected, state.dragPoint) / MAX_DRAG) * 100);
+    const drag = distance(state.selected, state.dragPoint);
+    const pct = Math.round(Math.min(1, drag / MAX_DRAG) * 100);
+    const curveDegrees = state.aimCurve === 0 ? 0 : Math.round(curveAngleForDrag(drag) * (180 / Math.PI));
     ui.powerFill.style.width = `${pct}%`;
-    ui.powerText.textContent = `${pct}%`;
+    ui.powerText.textContent = curveDegrees > 0 ? `${pct}% · ${curveDegrees}°` : `${pct}%`;
     ui.powerMeter.classList.toggle('show', pct > 3);
   }
 
@@ -1038,13 +1050,15 @@
   function clearBallCurve() {
     state.ballCurve = 0;
     state.ballCurveRemaining = 0;
+    state.ballCurveRate = 0;
     state.ballCurveSource = null;
   }
 
   function startBallCurve(source) {
     if (!state.shotCurve || !canCurve(source)) return;
     state.ballCurve = state.shotCurve;
-    state.ballCurveRemaining = BALL_CURVE_MAX_ANGLE;
+    state.ballCurveRemaining = state.shotCurveAngle;
+    state.ballCurveRate = state.shotCurveAngle / BALL_CURVE_DURATION;
     state.ballCurveSource = source;
   }
 
@@ -1055,7 +1069,7 @@
       clearBallCurve();
       return;
     }
-    const step = Math.min(BALL_CURVE_RATE * dt, state.ballCurveRemaining);
+    const step = Math.min(state.ballCurveRate * dt, state.ballCurveRemaining);
     const angle = state.ballCurve * step;
     const rotated = rotateVelocity(ball.vx, ball.vy, angle);
     ball.vx = rotated.vx;
@@ -1302,6 +1316,7 @@
     if (isMatchOver()) { finishMatch(); return; }
     state.launchPlayer = null;
     state.shotCurve = 0;
+    state.shotCurveAngle = 0;
     state.pendingOutcome = null;
     updateUI();
   }
@@ -1345,6 +1360,7 @@
 
   function finishMatch() {
     state.shotCurve = 0;
+    state.shotCurveAngle = 0;
     clearBallCurve();
     state.phase = 'finished';
     stopCrowdAmbient();
@@ -1453,7 +1469,7 @@
       : online.enabled && state.phase === 'ready' && state.activeTeam !== online.side
         ? '<strong>Partida online:</strong> aguarde a jogada do adversário.'
         : canCurve(state.selected)
-          ? `<strong>Atacante #${state.selected.number}:</strong> escolha o efeito e mire reto na bola; a linha laranja prevê a curva.`
+          ? `<strong>Atacante #${state.selected.number}:</strong> escolha o efeito e mire na bola; mais força gera mais curva.`
         : '<strong>Como jogar:</strong> arraste um botão para trás e solte para lançar.';
   }
 
@@ -1636,11 +1652,12 @@
 
     let x = state.ball.x;
     let y = state.ball.y;
-    let remaining = BALL_CURVE_MAX_ANGLE;
+    let remaining = curveAngleForDrag(drag);
+    const curveRate = remaining / BALL_CURVE_DURATION;
     const points = [{ x, y }];
     const dt = PHYSICS_STEP;
     for (let stepIndex = 0; stepIndex < 240 && remaining > 0.0001; stepIndex += 1) {
-      const curveStep = Math.min(BALL_CURVE_RATE * dt, remaining);
+      const curveStep = Math.min(curveRate * dt, remaining);
       const rotated = rotateVelocity(vx, vy, curve * curveStep);
       vx = rotated.vx;
       vy = rotated.vy;
@@ -2005,12 +2022,13 @@
     resetFormation,
     canCurve,
     setAimCurve,
+    curveAngleForDrag,
     predictBallContact,
     predictCurvedBallPath,
     showBanner,
     closeCurrentBanner,
     clearBannerQueue,
     online,
-    constants: { WIDTH, HEIGHT, FIELD, GOAL, GOAL_LINE, PENALTY_AREA, FRICTION, STOP_SPEED, MAX_SPEED, MAX_DRAG, BALL_EDGE_RESTITUTION, BALL_RESTITUTION, BALL_CURVE_RATE, BALL_CURVE_MAX_ANGLE, CURVE_ATTACKERS, CARD_THRESHOLD, PHYSICS_STEP, TEAM_OPTIONS },
+    constants: { WIDTH, HEIGHT, FIELD, GOAL, GOAL_LINE, PENALTY_AREA, FRICTION, STOP_SPEED, MAX_SPEED, MAX_DRAG, BALL_EDGE_RESTITUTION, BALL_RESTITUTION, BALL_CURVE_MAX_ANGLE, BALL_CURVE_DURATION, BALL_CURVE_POWER_EXPONENT, CURVE_ATTACKERS, CARD_THRESHOLD, PHYSICS_STEP, TEAM_OPTIONS },
   };
 })();

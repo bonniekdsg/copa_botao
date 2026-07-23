@@ -59,7 +59,7 @@ Mantenha apenas uma instância enquanto o jogo não usar armazenamento compartil
 
 - Pressione um botão do time da vez.
 - Arraste na direção oposta ao lance e solte.
-- Para fazer uma curva com os atacantes 9, 10 ou 11, toque uma vez no botão, escolha **Esquerda**, **Reta** ou **Direita** e então faça o arraste. O botão segue reto até o contato e transfere para a bola um efeito progressivo de até 40°. O tracejado laranja usa a mesma simulação de impulso, atrito e curva da bola real e termina ao prever uma peça ou borda.
+- Para fazer uma curva com os atacantes 9, 10 ou 11, toque uma vez no botão, escolha **Esquerda**, **Reta** ou **Direita** e então faça o arraste. O botão segue reto até o contato e transfere o efeito para a bola: quanto maior a força, maior o arco, chegando a 50°. O tracejado laranja usa a mesma força, impulso, atrito e curva da bola real e termina ao prever uma peça ou borda.
 - Use `Esc` ou **Cancelar mira** para desistir antes de soltar.
 - Cada toque válido na bola mantém a posse, até o limite de três.
 - A bola rebate nas laterais e no fundo do campo, permanecendo em jogo.
