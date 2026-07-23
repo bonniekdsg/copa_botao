@@ -117,9 +117,48 @@ assert.equal(game.aimCurve, 1, 'a escolha da curva deve ficar registrada na mira
 game.selected = game.players.find((player) => player.team === 0 && player.number === 8);
 game.aimCurve = 0;
 assert.equal(api.setAimCurve(1), false, 'um jogador que não seja 9, 10 ou 11 não deve aceitar curva');
+const curveDrag = 100;
+const originalPlayers = game.players;
+const pathBlocker = originalPlayers.find((player) => player !== curveAttacker);
+game.ball.x = 500;
+game.ball.y = 300;
+curveAttacker.x = 300;
+curveAttacker.y = 300;
+pathBlocker.x = 380;
+pathBlocker.y = 300;
+game.players = [curveAttacker, pathBlocker];
+assert.equal(
+  api.predictBallContact(curveAttacker, 1, 0, curveDrag),
+  null,
+  'a previsão de curva não deve aparecer quando outro botão será atingido antes da bola',
+);
+game.ball.x = 300;
+game.ball.y = 300;
 curveAttacker.x = game.ball.x - curveAttacker.radius - game.ball.radius - 2;
 curveAttacker.y = game.ball.y;
-curveAttacker.vx = 500;
+game.players = [curveAttacker];
+const predictedCurve = api.predictCurvedBallPath(curveAttacker, 1, 0, curveDrag, 1);
+assert.ok(predictedCurve.length > 80, 'a previsão deve amostrar a curva física até o fim do efeito');
+const weakerCurve = api.predictCurvedBallPath(curveAttacker, 1, 0, 70, 1);
+assert.ok(
+  Math.hypot(
+    predictedCurve.at(-1).x - predictedCurve[0].x,
+    predictedCurve.at(-1).y - predictedCurve[0].y,
+  ) >
+    Math.hypot(
+      weakerCurve.at(-1).x - weakerCurve[0].x,
+      weakerCurve.at(-1).y - weakerCurve[0].y,
+    ),
+  'a força usada deve alterar o comprimento do tracejado previsto',
+);
+const predictedBlocker = pathBlocker;
+predictedBlocker.x = predictedCurve[20].x;
+predictedBlocker.y = predictedCurve[20].y;
+game.players = [curveAttacker, predictedBlocker];
+const blockedPrediction = api.predictCurvedBallPath(curveAttacker, 1, 0, curveDrag, 1);
+assert.ok(blockedPrediction.length < predictedCurve.length, 'o tracejado deve terminar ao prever outro botão');
+game.players = [curveAttacker];
+curveAttacker.vx = (curveDrag / api.constants.MAX_DRAG) * api.constants.MAX_SPEED;
 curveAttacker.vy = 0;
 game.launchPlayer = curveAttacker;
 game.shotCurve = 1;
@@ -128,8 +167,14 @@ game.phase = 'moving';
 api.update(1 / 120);
 assert.ok(Math.abs(curveAttacker.vy) < 0.001, 'o atacante deve seguir reto até tocar a bola');
 assert.equal(game.ballCurve, 1, 'o atacante 10 deve transferir a curva escolhida para a bola');
-api.update(1 / 120);
+for (let step = 0; step < 180 && game.ballCurve !== 0; step += 1) api.update(api.constants.PHYSICS_STEP);
+const predictedEnd = predictedCurve.at(-1);
 assert.ok(game.ball.vy > 0, 'a física local deve curvar a trajetória da bola para a direita depois do contato');
+assert.ok(
+  Math.hypot(game.ball.x - predictedEnd.x, game.ball.y - predictedEnd.y) < 5,
+  'a bola real deve terminar o trecho de efeito sobre o tracejado físico previsto',
+);
+game.players = originalPlayers;
 api.resetFormation();
 game.phase = 'ready';
 

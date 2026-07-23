@@ -393,6 +393,17 @@ assert.equal(
   `pressionar o botão deve iniciar a mira (canvas: ${JSON.stringify(rect)}, ponto: ${JSON.stringify(start)}, eventos: ${await evaluate('window.__inputSeen.join()')})`,
 );
 await command('Input.dispatchMouseEvent', { type: 'mouseMoved', ...pull, button: 'left', buttons: 1 });
+assert.ok(
+  await evaluate(`(() => {
+    const api = window.__copaBotao;
+    const player = api.state.selected;
+    const dx = player.x - api.state.dragPoint.x;
+    const dy = player.y - api.state.dragPoint.y;
+    const drag = Math.hypot(dx, dy);
+    return api.predictCurvedBallPath(player, dx / drag, dy / drag, drag, api.state.aimCurve).length > 1;
+  })()`),
+  'a mira deve gerar um tracejado usando a previsão física da bola',
+);
 const curveScreenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
 await writeFile(
   mobile ? '/tmp/copa-botao-curve-mobile.png' : '/tmp/copa-botao-curve.png',

@@ -11,6 +11,7 @@ const BALL_RADIUS = 18;
 const MAX_DRAG = 205;
 const MAX_SPEED = 1420;
 const BALL_EDGE_RESTITUTION = 0.68;
+const BALL_RESTITUTION = 0.83;
 const BALL_CURVE_RATE = 0.78;
 const BALL_CURVE_MAX_ANGLE = Math.PI * (40 / 180);
 const CURVE_ATTACKERS = [9, 10, 11];
@@ -372,7 +373,7 @@ class ServerGame {
           this.emit('sound', { sound: 'piece' });
         }
       }
-      const restitution = involvesBall ? 0.83 : 0.7;
+      const restitution = involvesBall ? BALL_RESTITUTION : 0.7;
       const impulse = (-(1 + restitution) * relative) / (1 / a.mass + 1 / b.mass);
       a.vx -= (impulse / a.mass) * nx;
       a.vy -= (impulse / a.mass) * ny;
@@ -655,6 +656,7 @@ module.exports = {
     MAX_DRAG,
     MAX_SPEED,
     BALL_EDGE_RESTITUTION,
+    BALL_RESTITUTION,
     BALL_CURVE_RATE,
     BALL_CURVE_MAX_ANGLE,
     CURVE_ATTACKERS,

@@ -15,12 +15,14 @@
   const MAX_DRAG = 205;
   const MAX_SPEED = 1420;
   const BALL_EDGE_RESTITUTION = 0.68;
+  const BALL_RESTITUTION = 0.83;
   const BALL_CURVE_RATE = 0.78;
   const BALL_CURVE_MAX_ANGLE = Math.PI * (40 / 180);
   const CURVE_ATTACKERS = [9, 10, 11];
   const CARD_THRESHOLD = { yellow: MAX_SPEED * 0.3, red: MAX_SPEED * 0.7 };
   const STOP_SPEED = 14;
   const FRICTION = { player: 520, ball: 420 };
+  const PHYSICS_STEP = 1 / 120;
   const TEAM_OPTIONS = [
     { name: 'Argentina', image: 'assets/argentina.webp', alternateImage: 'assets/argentina2.webp', color: '#6ec6ec' },
     { name: 'Espanha', image: 'assets/espanha.webp', alternateImage: 'assets/espanha2.webp', color: '#f0443d' },
@@ -756,6 +758,15 @@
 
   function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 
+  function rotateVelocity(vx, vy, angle) {
+    const cosine = Math.cos(angle);
+    const sine = Math.sin(angle);
+    return {
+      vx: vx * cosine - vy * sine,
+      vy: vx * sine + vy * cosine,
+    };
+  }
+
   function canCurve(player) {
     return player?.type === 'player' && CURVE_ATTACKERS.includes(player.number);
   }
@@ -1046,12 +1057,9 @@
     }
     const step = Math.min(BALL_CURVE_RATE * dt, state.ballCurveRemaining);
     const angle = state.ballCurve * step;
-    const cosine = Math.cos(angle);
-    const sine = Math.sin(angle);
-    const vx = ball.vx;
-    const vy = ball.vy;
-    ball.vx = vx * cosine - vy * sine;
-    ball.vy = vx * sine + vy * cosine;
+    const rotated = rotateVelocity(ball.vx, ball.vy, angle);
+    ball.vx = rotated.vx;
+    ball.vy = rotated.vy;
     state.ballCurveRemaining -= step;
     if (state.ballCurveRemaining <= 0.0001) clearBallCurve();
   }
@@ -1079,7 +1087,7 @@
         if (a.type === 'ball' || b.type === 'ball') playSound('kick');
         else playSound('piece');
       }
-      const restitution = a.type === 'ball' || b.type === 'ball' ? 0.83 : 0.7;
+      const restitution = a.type === 'ball' || b.type === 'ball' ? BALL_RESTITUTION : 0.7;
       const impulse = (-(1 + restitution) * relative) / (1 / a.mass + 1 / b.mass);
       a.vx -= (impulse / a.mass) * nx;
       a.vy -= (impulse / a.mass) * ny;
@@ -1558,6 +1566,98 @@
     ctx.restore();
   }
 
+  function predictBallContact(player, nx, ny, drag) {
+    const toBallX = state.ball.x - player.x;
+    const toBallY = state.ball.y - player.y;
+    const alongPath = toBallX * nx + toBallY * ny;
+    const lateralPath = Math.abs(toBallX * ny - toBallY * nx);
+    const contactRadius = player.radius + state.ball.radius;
+    const reachesBall = alongPath > 0 && lateralPath <= contactRadius;
+    const contactDistance = reachesBall
+      ? alongPath - Math.sqrt(Math.max(0, contactRadius * contactRadius - lateralPath * lateralPath))
+      : Infinity;
+    const blockingDistance = state.players.reduce((nearest, other) => {
+      if (other === player) return nearest;
+      const toOtherX = other.x - player.x;
+      const toOtherY = other.y - player.y;
+      const along = toOtherX * nx + toOtherY * ny;
+      const collisionRadius = player.radius + other.radius;
+      const lateral = Math.abs(toOtherX * ny - toOtherY * nx);
+      if (along <= 0 || lateral > collisionRadius) return nearest;
+      const hitDistance = along - Math.sqrt(Math.max(0, collisionRadius * collisionRadius - lateral * lateral));
+      return Math.min(nearest, hitDistance);
+    }, Infinity);
+    if (blockingDistance <= contactDistance) return null;
+    const launchSpeed = (Math.min(drag, MAX_DRAG) / MAX_DRAG) * MAX_SPEED;
+    const estimatedTravel = (launchSpeed * launchSpeed) / (2 * FRICTION.player);
+    if (contactDistance > estimatedTravel) return null;
+    const speedAtContact = Math.sqrt(Math.max(0, launchSpeed * launchSpeed - 2 * FRICTION.player * contactDistance));
+    const playerX = player.x + nx * contactDistance;
+    const playerY = player.y + ny * contactDistance;
+    const impactX = state.ball.x - playerX;
+    const impactY = state.ball.y - playerY;
+    const impactLength = Math.hypot(impactX, impactY) || 1;
+    return {
+      distance: contactDistance,
+      speed: speedAtContact,
+      nx: impactX / impactLength,
+      ny: impactY / impactLength,
+    };
+  }
+
+  function predictionHitsBoundary(x, y) {
+    const r = state.ball.radius;
+    const betweenPosts = y - r > GOAL.top && y + r < GOAL.bottom;
+    if (betweenPosts && (x + r < GOAL_LINE.left || x - r > GOAL_LINE.right)) return true;
+    return x - r <= FIELD.left || x + r >= FIELD.right || y - r <= FIELD.top || y + r >= FIELD.bottom;
+  }
+
+  function predictionHitsPlayer(x, y, source) {
+    return state.players.some((player) =>
+      player !== source && Math.hypot(x - player.x, y - player.y) <= state.ball.radius + player.radius,
+    );
+  }
+
+  function predictCurvedBallPath(player, nx, ny, drag, curve, contact = null) {
+    const predictedContact = contact || predictBallContact(player, nx, ny, drag);
+    if (!predictedContact || !curve) return [];
+    const approach = Math.max(0, nx * predictedContact.nx + ny * predictedContact.ny);
+    if (approach <= 0 || predictedContact.speed <= 0) return [];
+    const relative = -predictedContact.speed * approach;
+    const impulse =
+      (-(1 + BALL_RESTITUTION) * relative) /
+      (1 / player.mass + 1 / state.ball.mass);
+    let vx = (impulse / state.ball.mass) * predictedContact.nx;
+    let vy = (impulse / state.ball.mass) * predictedContact.ny;
+    if (isShootingZone(player)) {
+      vx += predictedContact.nx * 155;
+      vy += predictedContact.ny * 155;
+    }
+
+    let x = state.ball.x;
+    let y = state.ball.y;
+    let remaining = BALL_CURVE_MAX_ANGLE;
+    const points = [{ x, y }];
+    const dt = PHYSICS_STEP;
+    for (let stepIndex = 0; stepIndex < 240 && remaining > 0.0001; stepIndex += 1) {
+      const curveStep = Math.min(BALL_CURVE_RATE * dt, remaining);
+      const rotated = rotateVelocity(vx, vy, curve * curveStep);
+      vx = rotated.vx;
+      vy = rotated.vy;
+      x += vx * dt;
+      y += vy * dt;
+      const speed = Math.hypot(vx, vy);
+      if (speed <= STOP_SPEED) break;
+      const nextSpeed = Math.max(0, speed - FRICTION.ball * dt);
+      vx *= nextSpeed / speed;
+      vy *= nextSpeed / speed;
+      remaining -= curveStep;
+      if (predictionHitsPlayer(x, y, player) || predictionHitsBoundary(x, y)) break;
+      points.push({ x, y });
+    }
+    return points;
+  }
+
   function drawAim() {
     const player = state.selected;
     const pull = state.dragPoint;
@@ -1571,19 +1671,10 @@
     const startX = player.x + nx * (player.radius + 8);
     const startY = player.y + ny * (player.radius + 8);
     const curve = canCurve(player) ? state.aimCurve : 0;
-    const toBallX = state.ball.x - player.x;
-    const toBallY = state.ball.y - player.y;
-    const alongPath = toBallX * nx + toBallY * ny;
-    const lateralPath = Math.abs(toBallX * ny - toBallY * nx);
-    const contactRadius = player.radius + state.ball.radius;
-    const reachesBall = alongPath > 0 && lateralPath <= contactRadius;
-    const contactDistance = reachesBall
-      ? alongPath - Math.sqrt(Math.max(0, contactRadius * contactRadius - lateralPath * lateralPath))
-      : Infinity;
-    const launchSpeed = (Math.min(drag, MAX_DRAG) / MAX_DRAG) * MAX_SPEED;
-    const estimatedTravel = (launchSpeed * launchSpeed) / (2 * FRICTION.player);
-    const predictsBallContact = contactDistance <= estimatedTravel;
-    const playerPathLength = predictsBallContact ? Math.max(player.radius + 8, contactDistance) : projected;
+    const predictedContact = predictBallContact(player, nx, ny, drag);
+    const playerPathLength = predictedContact
+      ? Math.max(player.radius + 8, predictedContact.distance)
+      : projected;
     const endX = player.x + nx * playerPathLength;
     const endY = player.y + ny * playerPathLength;
 
@@ -1601,31 +1692,20 @@
     let tangentX = nx;
     let tangentY = ny;
     let arrowColor = '#c4f45e';
-    if (predictsBallContact && curve !== 0) {
-      const contactCenterX = player.x + nx * contactDistance;
-      const contactCenterY = player.y + ny * contactDistance;
-      const impactX = state.ball.x - contactCenterX;
-      const impactY = state.ball.y - contactCenterY;
-      const impactLength = Math.hypot(impactX, impactY) || 1;
-      const ballNx = impactX / impactLength;
-      const ballNy = impactY / impactLength;
-      const perpendicularX = -ballNy;
-      const perpendicularY = ballNx;
-      const previewLength = 205;
-      const ballStartX = state.ball.x + ballNx * (state.ball.radius + 7);
-      const ballStartY = state.ball.y + ballNy * (state.ball.radius + 7);
-      const controlX = ballStartX + ballNx * previewLength * 0.55;
-      const controlY = ballStartY + ballNy * previewLength * 0.55;
-      arrowX = ballStartX + ballNx * previewLength * 0.88 + perpendicularX * curve * previewLength * 0.36;
-      arrowY = ballStartY + ballNy * previewLength * 0.88 + perpendicularY * curve * previewLength * 0.36;
-      const tangentLength = Math.hypot(arrowX - controlX, arrowY - controlY) || 1;
-      tangentX = (arrowX - controlX) / tangentLength;
-      tangentY = (arrowY - controlY) / tangentLength;
+    const curvedPath = predictCurvedBallPath(player, nx, ny, drag, curve, predictedContact);
+    if (curvedPath.length > 1) {
+      const lastPoint = curvedPath.at(-1);
+      const previousPoint = curvedPath.at(-2);
+      arrowX = lastPoint.x;
+      arrowY = lastPoint.y;
+      const tangentLength = Math.hypot(lastPoint.x - previousPoint.x, lastPoint.y - previousPoint.y) || 1;
+      tangentX = (lastPoint.x - previousPoint.x) / tangentLength;
+      tangentY = (lastPoint.y - previousPoint.y) / tangentLength;
       arrowColor = '#ffbd2e';
       ctx.strokeStyle = 'rgba(255,189,46,.95)';
       ctx.beginPath();
-      ctx.moveTo(ballStartX, ballStartY);
-      ctx.quadraticCurveTo(controlX, controlY, arrowX, arrowY);
+      ctx.moveTo(curvedPath[0].x, curvedPath[0].y);
+      for (const point of curvedPath.slice(1)) ctx.lineTo(point.x, point.y);
       ctx.stroke();
     }
 
@@ -1750,7 +1830,7 @@
     const elapsed = Math.min(.05, (time - state.lastTime) / 1000);
     state.lastTime = time;
     state.accumulator += elapsed;
-    const step = 1 / 120;
+    const step = PHYSICS_STEP;
     while (state.accumulator >= step) {
       if (!online.enabled) update(step);
       state.accumulator -= step;
@@ -1925,10 +2005,12 @@
     resetFormation,
     canCurve,
     setAimCurve,
+    predictBallContact,
+    predictCurvedBallPath,
     showBanner,
     closeCurrentBanner,
     clearBannerQueue,
     online,
-    constants: { WIDTH, HEIGHT, FIELD, GOAL, GOAL_LINE, PENALTY_AREA, FRICTION, STOP_SPEED, MAX_SPEED, MAX_DRAG, BALL_EDGE_RESTITUTION, BALL_CURVE_RATE, BALL_CURVE_MAX_ANGLE, CURVE_ATTACKERS, CARD_THRESHOLD, TEAM_OPTIONS },
+    constants: { WIDTH, HEIGHT, FIELD, GOAL, GOAL_LINE, PENALTY_AREA, FRICTION, STOP_SPEED, MAX_SPEED, MAX_DRAG, BALL_EDGE_RESTITUTION, BALL_RESTITUTION, BALL_CURVE_RATE, BALL_CURVE_MAX_ANGLE, CURVE_ATTACKERS, CARD_THRESHOLD, PHYSICS_STEP, TEAM_OPTIONS },
   };
 })();
