@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#07130d" />
+    <meta
+      name="description"
+      content="Futebol de botão local para dois jogadores, inspirado no clássico jogo de mesa."
+    />
+    <title>Copa de Botão</title>
+    <link rel="preload" href="assets/sound_background.mp3" as="audio" type="audio/mpeg" fetchpriority="high" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <audio
+      id="menuBackgroundAudio"
+      src="assets/sound_background.mp3"
+      preload="auto"
+      autoplay
+      loop
+      fetchpriority="high"
+    ></audio>
+
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="Copa de Botão — início">
+          <img class="brand-mark" src="assets/icone_jogo.webp" alt="" />
+          <span><strong>Copa</strong> de Botão</span>
+        </a>
+        <div class="top-actions">
+          <button class="icon-button" id="soundButton" type="button" aria-label="Desativar som" aria-pressed="true">
+            <span aria-hidden="true">♪</span>
+          </button>
+          <button class="text-button" id="rulesButton" type="button">Como jogar</button>
+        </div>
+      </header>
+
+      <section class="game-stage" id="gameStage" aria-label="Partida de futebol de botão">
+        <div class="scoreboard" id="scoreboard">
+          <div class="team-score team-score--argentina" id="team0Card">
+            <img id="team0Image" src="assets/argentina.webp" alt="" />
+            <div>
+              <span class="eyebrow">Jogador 1</span><strong id="team0Name">Argentina</strong>
+              <span class="discipline-line" id="disciplineLine0" aria-label="Disciplina da Argentina">
+                <i class="mini-card mini-card--yellow" aria-hidden="true"></i><b id="yellow0">0</b>
+                <i class="mini-card mini-card--red" aria-hidden="true"></i><b id="red0">0</b>
+                <span><b id="fouls0">0</b> faltas</span>
+              </span>
+            </div>
+            <span class="score" id="score0">0</span>
+          </div>
+          <div class="match-meta">
+            <span class="match-label">Primeiro a 3</span>
+            <strong><span id="shotCount">0</span><small>/40 lances</small></strong>
+          </div>
+          <div class="team-score team-score--spain" id="team1Card">
+            <span class="score" id="score1">0</span>
+            <div>
+              <span class="eyebrow">Jogador 2</span><strong id="team1Name">Espanha</strong>
+              <span class="discipline-line" id="disciplineLine1" aria-label="Disciplina da Espanha">
+                <i class="mini-card mini-card--yellow" aria-hidden="true"></i><b id="yellow1">0</b>
+                <i class="mini-card mini-card--red" aria-hidden="true"></i><b id="red1">0</b>
+                <span><b id="fouls1">0</b> faltas</span>
+              </span>
+            </div>
+            <img id="team1Image" src="assets/espanha.webp" alt="" />
+          </div>
+        </div>
+
+        <div class="turn-strip" id="turnStrip" role="status" aria-live="polite">
+          <div class="turn-copy">
+            <span class="turn-dot" aria-hidden="true"></span>
+            <span id="turnText">Vez da Argentina</span>
+          </div>
+          <div class="touch-counter" aria-label="Toques disponíveis">
+            <span>Toques</span>
+            <div id="touchDots" aria-hidden="true">
+              <i></i><i></i><i></i>
+            </div>
+            <strong id="touchText">3</strong>
+          </div>
+        </div>
+
+        <div class="board-wrap" id="boardWrap">
+          <canvas id="gameCanvas" width="1448" height="1086" aria-label="Campo de futebol de botão"></canvas>
+          <div class="event-banner" id="eventBanner" role="status" aria-live="assertive"></div>
+          <div class="goal-overlay" id="goalOverlay" hidden role="status" aria-label="Gol">
+            <img src="assets/gol.webp" alt="Gooooool!" />
+          </div>
+          <div class="power-meter" id="powerMeter" aria-hidden="true">
+            <span>Força</span>
+            <div><i id="powerFill"></i></div>
+            <strong id="powerText">0%</strong>
+          </div>
+          <div class="start-overlay" id="startOverlay">
+            <div class="start-card">
+              <div class="start-branding">
+                <img
+                  class="start-logo"
+                  src="assets/logo_copa_botao.webp"
+                  alt="Copa de Botão"
+                />
+              </div>
+              <div class="start-panel">
+                <button class="primary-button" id="startButton" type="button">
+                  Jogar online
+                </button>
+                <div class="start-menu" aria-label="Opções da partida">
+                  <button id="startRulesButton" type="button"><span aria-hidden="true">▤</span> Regras</button>
+                  <button id="localButton" type="button"><span aria-hidden="true">♟</span> Jogar local</button>
+                  <button id="startSoundButton" type="button"><span aria-hidden="true">♪</span> <b id="startSoundLabel">Som ligado</b></button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flow-overlay online-lobby-overlay" id="onlineLobbyOverlay" hidden>
+            <div class="online-lobby-card">
+              <span class="kicker">Multiplayer online</span>
+              <h2>Jogue de outro computador</h2>
+              <p>Crie uma sala e envie o código ao seu adversário, ou entre usando o código recebido.</p>
+
+              <div class="online-actions" id="onlineActions">
+                <button class="primary-button" id="createRoomButton" type="button">
+                  Criar nova sala <span aria-hidden="true">＋</span>
+                </button>
+                <div class="online-divider"><span>ou</span></div>
+                <form class="join-room-form" id="joinRoomForm">
+                  <label for="roomCodeInput">Código da sala</label>
+                  <div>
+                    <input
+                      id="roomCodeInput"
+                      name="roomCode"
+                      type="text"
+                      maxlength="5"
+                      autocomplete="off"
+                      autocapitalize="characters"
+                      spellcheck="false"
+                      placeholder="ABCDE"
+                      aria-describedby="onlineStatus"
+                    />
+                    <button class="secondary-button" id="joinRoomButton" type="submit">Entrar</button>
+                  </div>
+                </form>
+              </div>
+
+              <div class="room-waiting" id="roomWaiting" hidden>
+                <span class="connection-dot" aria-hidden="true"></span>
+                <p>Aguardando o segundo jogador…</p>
+                <strong id="roomCodeDisplay">ABCDE</strong>
+                <button class="secondary-button" id="copyRoomButton" type="button">Copiar convite</button>
+              </div>
+
+              <p class="online-status" id="onlineStatus" role="status" aria-live="polite">
+                Conecte-se para criar ou entrar em uma sala.
+              </p>
+              <button class="text-button" id="backFromOnlineButton" type="button">Voltar ao início</button>
+            </div>
+          </div>
+          <div class="flow-overlay team-select-overlay" id="teamSelectOverlay" hidden>
+            <div class="team-select-card">
+              <span class="kicker">Configuração da partida</span>
+              <h2 id="teamSelectTitle">Escolham seus times</h2>
+              <p id="teamSelectDescription">Cada jogador pode escolher livremente. É permitido repetir o mesmo time.</p>
+              <div class="player-select-grid">
+                <fieldset class="player-team-picker player-team-picker--one">
+                  <legend><span>1</span><strong>Jogador 1</strong></legend>
+                  <div class="team-choice-grid">
+                    <label class="team-choice">
+                      <input type="radio" name="teamChoice0" value="0" checked />
+                      <img src="assets/argentina.webp" alt="" />
+                      <span>Argentina</span>
+                    </label>
+                    <label class="team-choice">
+                      <input type="radio" name="teamChoice0" value="1" />
+                      <img src="assets/espanha.webp" alt="" />
+                      <span>Espanha</span>
+                    </label>
+                  </div>
+                  <button class="player-confirm" id="confirmPlayer0Button" type="button">Confirmar Jogador 1</button>
+                </fieldset>
+                <fieldset class="player-team-picker player-team-picker--two">
+                  <legend><span>2</span><strong>Jogador 2</strong></legend>
+                  <div class="team-choice-grid">
+                    <label class="team-choice">
+                      <input type="radio" name="teamChoice1" value="0" />
+                      <img src="assets/argentina.webp" alt="" />
+                      <span>Argentina</span>
+                    </label>
+                    <label class="team-choice">
+                      <input type="radio" name="teamChoice1" value="1" checked />
+                      <img src="assets/espanha.webp" alt="" />
+                      <span>Espanha</span>
+                    </label>
+                  </div>
+                  <button class="player-confirm" id="confirmPlayer1Button" type="button">Confirmar Jogador 2</button>
+                </fieldset>
+              </div>
+              <div class="team-confirm-footer">
+                <p id="teamConfirmStatus" role="status" aria-live="polite">Aguardando a confirmação dos dois jogadores.</p>
+                <button class="text-button" id="backToStartButton" type="button">Voltar</button>
+              </div>
+            </div>
+          </div>
+          <div class="flow-overlay coin-overlay" id="coinTossOverlay" hidden>
+            <div class="coin-card">
+              <span class="kicker">Sorteio da saída</span>
+              <h2>Quem começa?</h2>
+              <div class="coin-stage" id="coinStage" aria-hidden="true">
+                <div class="toss-coin" id="tossCoin">
+                  <div class="coin-face coin-face--front">
+                    <img id="coinTeam0Image" src="assets/argentina.webp" alt="" />
+                    <span>Jogador 1</span>
+                  </div>
+                  <div class="coin-face coin-face--back">
+                    <img id="coinTeam1Image" src="assets/espanha.webp" alt="" />
+                    <span>Jogador 2</span>
+                  </div>
+                </div>
+                <span class="coin-shadow"></span>
+              </div>
+              <p id="coinStatus" role="status" aria-live="assertive">Preparando a moeda…</p>
+            </div>
+          </div>
+          <div class="result-overlay" id="resultOverlay" hidden>
+            <div class="result-card">
+              <span class="result-icon" aria-hidden="true">★</span>
+              <span class="kicker">Fim de jogo</span>
+              <h2 id="resultTitle">Argentina venceu!</h2>
+              <p id="resultScore">3 × 1</p>
+              <button class="primary-button" id="rematchButton" type="button">Revanche <span aria-hidden="true">↻</span></button>
+              <button class="text-button" id="newMatchButton" type="button">Voltar ao início</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="game-controls">
+          <p id="hintText"><strong>Como jogar:</strong> arraste um botão para trás e solte para lançar.</p>
+          <span class="network-badge" id="networkBadge" hidden>
+            <i aria-hidden="true"></i><span id="networkBadgeText">Online</span>
+          </span>
+          <button class="secondary-button" id="cancelButton" type="button" disabled>Cancelar mira <kbd>Esc</kbd></button>
+        </div>
+      </section>
+    </main>
+
+    <dialog class="rules-dialog" id="rulesDialog">
+      <div class="dialog-head">
+        <div><span class="kicker">Manual rápido</span><h2>Como jogar</h2></div>
+        <button class="icon-button" id="closeRulesButton" type="button" aria-label="Fechar regras">×</button>
+      </div>
+      <ol class="rules-list">
+        <li><span>01</span><div><strong>Mire</strong><p>Pressione um botão do seu time, puxe para trás e solte. A seta mostra a direção; a barra, a força.</p></div></li>
+        <li><span>02</span><div><strong>Acerte a bola</strong><p>Ao tocar a bola, você mantém a vez por até três lances. Se errar, a posse muda.</p></div></li>
+        <li><span>03</span><div><strong>Evite a falta</strong><p>Acertar um rival antes da bola é falta e entrega imediatamente a posse.</p></div></li>
+        <li><span>04</span><div><strong>Faça o gol</strong><p>A bola precisa cruzar completamente a linha entre as traves. Vence quem fizer 3 gols; com 40 lances, vale o placar.</p></div></li>
+        <li><span>05</span><div><strong>Evite os cartões</strong><p>Impactos médios geram amarelo; impactos fortes, vermelho direto. O segundo amarelo expulsa o botão da partida.</p></div></li>
+        <li><span>06</span><div><strong>Reponha a bola</strong><p>Laterais, escanteios e tiros de meta são cobrados arrastando diretamente a bola. No tiro de meta, ela começa no canto superior esquerdo da pequena área.</p></div></li>
+      </ol>
+      <p class="rule-note">O último botão a tocar na bola, inclusive em desvios, define lateral, escanteio ou tiro de meta.</p>
+    </dialog>
+
+    <audio id="kickAudio" src="assets/chute.wav" preload="auto"></audio>
+    <audio id="whistleAudio" src="assets/apito.mp3" preload="auto"></audio>
+    <audio id="crowdAudio" src="assets/torcida.mp3" preload="auto" loop></audio>
+    <audio id="clickAudio" src="assets/clique.wav" preload="auto"></audio>
+    <audio id="finalAudio" src="assets/final.mp3" preload="auto"></audio>
+
+    <script src="game.js"></script>
+  </body>
+</html>
