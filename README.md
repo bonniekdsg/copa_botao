@@ -31,6 +31,20 @@ Depois, acesse `http://localhost:4173` no navegador.
 
 Para testar entre dois computadores na mesma rede, abra `http://IP-DO-COMPUTADOR:4173` nos dois dispositivos. Para publicar na internet, use uma hospedagem Node.js com HTTPS/WSS e processo persistente; hospedagem exclusivamente estática não executa as salas WebSocket.
 
+## Publicar no Render
+
+O arquivo `render.yaml` configura o jogo como um único Web Service Node.js, com WebSocket, endpoint de saúde e deploy automático a cada push na branch principal.
+
+1. No painel do Render, selecione **New > Blueprint**.
+2. Conecte o repositório `bonniekdsg/copa_botao`.
+3. Confirme a criação do serviço `copa-botao`.
+4. Aguarde o health check de `/health` ficar disponível.
+5. Abra o endereço `https://copa-botao.onrender.com` informado pelo Render.
+
+O plano gratuito entra em suspensão após um período sem tráfego. A primeira abertura depois disso pode levar cerca de um minuto. Uma nova conexão ou mensagem WebSocket reativa e mantém o serviço em uso. Como as salas ficam na memória, uma reinicialização ou novo deploy encerra as partidas abertas.
+
+Mantenha apenas uma instância enquanto o jogo não usar armazenamento compartilhado. Para evitar suspensão por inatividade, altere o tipo da instância no painel do Render para um plano pago.
+
 ## Funcionamento online sem banco
 
 - As salas ficam somente na memória do servidor.
