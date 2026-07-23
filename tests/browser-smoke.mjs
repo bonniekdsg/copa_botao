@@ -218,6 +218,11 @@ assert.equal(
   true,
   'a moeda deve iniciar a animação no ar',
 );
+assert.deepEqual(
+  await evaluate("[...document.querySelectorAll('.coin-face img')].map((image) => new URL(image.src).pathname)"),
+  ['/assets/moeda1.webp', '/assets/moeda2.webp'],
+  'o sorteio deve usar as faces numeradas dos jogadores 1 e 2',
+);
 const coinScreenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
 await writeFile(
   mobile ? '/tmp/copa-botao-coin-mobile.png' : '/tmp/copa-botao-coin.png',

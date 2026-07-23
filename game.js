@@ -68,7 +68,6 @@
     teamNames: [document.querySelector('#team0Name'), document.querySelector('#team1Name')],
     teamImages: [document.querySelector('#team0Image'), document.querySelector('#team1Image')],
     disciplineLines: [document.querySelector('#disciplineLine0'), document.querySelector('#disciplineLine1')],
-    coinTeamImages: [document.querySelector('#coinTeam0Image'), document.querySelector('#coinTeam1Image')],
     playerTeamPickers: [...document.querySelectorAll('.player-team-picker')],
     playerConfirmButtons: [document.querySelector('#confirmPlayer0Button'), document.querySelector('#confirmPlayer1Button')],
     teamConfirmStatus: document.querySelector('#teamConfirmStatus'),
@@ -194,8 +193,6 @@
       ui.teamImages[side].src = selectedTeamImagePath(side);
       ui.teamImages[side].alt = '';
       ui.disciplineLines[side].setAttribute('aria-label', `Disciplina de ${team.name}, Jogador ${side + 1}`);
-      ui.coinTeamImages[side].src = selectedTeamImagePath(side);
-      ui.coinTeamImages[side].alt = '';
     }
   }
 

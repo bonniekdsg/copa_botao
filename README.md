@@ -12,7 +12,8 @@ Cada equipe possui dez jogadores de linha e um goleiro, distribuídos inicialmen
 2. Um jogador cria uma sala e envia o código ou link ao adversário.
 3. O segundo jogador abre o jogo em outro computador e informa o código.
 4. Cada jogador escolhe e confirma o próprio time. Times iguais são permitidos; o Jogador 2 usa a camisa alternativa.
-5. O servidor sorteia a saída e mantém física, regras, placar e turnos sincronizados.
+5. O sorteio usa uma moeda dourada: a face 1 representa o Jogador 1 e a face 2 representa o Jogador 2.
+6. O servidor sorteia a saída e mantém física, regras, placar e turnos sincronizados.
 
 ### Local
 
