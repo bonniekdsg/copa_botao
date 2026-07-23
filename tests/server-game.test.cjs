@@ -74,9 +74,9 @@ for (let index = 0; index < 120 && limitedCurveGame.state.ballCurve !== 0; index
 const finalCurveAngle = Math.atan2(limitedCurveGame.state.ball.vy, limitedCurveGame.state.ball.vx);
 assert.ok(
   finalCurveAngle <= constants.BALL_CURVE_MAX_ANGLE + 0.001,
-  'a curva da bola não deve ultrapassar o limite de 25 graus',
+  'a curva da bola não deve ultrapassar o limite de 40 graus',
 );
-assert.ok(finalCurveAngle > 0.4, 'a curva completa deve ser claramente perceptível');
+assert.ok(finalCurveAngle > 0.65, 'a curva completa de 40 graus deve ser claramente perceptível');
 
 const invalidCurveGame = new ServerGame({ starter: 0 });
 assert.equal(

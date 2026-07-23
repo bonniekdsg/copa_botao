@@ -15,8 +15,8 @@
   const MAX_DRAG = 205;
   const MAX_SPEED = 1420;
   const BALL_EDGE_RESTITUTION = 0.68;
-  const BALL_CURVE_RATE = 0.58;
-  const BALL_CURVE_MAX_ANGLE = Math.PI * (25 / 180);
+  const BALL_CURVE_RATE = 0.78;
+  const BALL_CURVE_MAX_ANGLE = Math.PI * (40 / 180);
   const CURVE_ATTACKERS = [9, 10, 11];
   const CARD_THRESHOLD = { yellow: MAX_SPEED * 0.3, red: MAX_SPEED * 0.7 };
   const STOP_SPEED = 14;
