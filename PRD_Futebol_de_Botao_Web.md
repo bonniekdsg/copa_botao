@@ -26,7 +26,7 @@ Não existem muitas adaptações web modernas e fiéis do futebol de botão. A m
 
 - Reproduzir de forma fiel a **mecânica de arraste com palheta** para empurrar/chutar o botão.
 - Entregar uma **física previsível e justa** (colisões, atrito, ricochete) que recompense a habilidade do jogador.
-- Implementar o **sistema de turnos** e as **regras principais** (gol, falta, saída de bola, reposição).
+- Implementar o **sistema de turnos** e as **regras principais** (gol, falta e rebote nas bordas).
 - Rodar bem no navegador sem instalação, com carregamento rápido.
 
 ### 1.3 Não-objetivos (fora do escopo do MVP)
@@ -115,15 +115,12 @@ Estas regras definem o comportamento esperado do MVP. Onde o futebol de botão t
 - Ao confirmar o gol, o jogo toca o apito e exibe uma comemoração visual em tela cheia por aproximadamente 2,8 segundos. A torcida ambiente continua durante a comemoração; a partida ou o resultado final só reaparece depois desse feedback.
 - Após o gol: placar é atualizado, os times voltam à **formação inicial**, a bola volta ao **centro**, e a **saída** é dada pelo time que sofreu o gol.
 
-### 4.6 Bola para fora e reposição
+### 4.6 Rebote nas bordas
 
-- A bola sai quando cruza completamente uma lateral ou linha de fundo fora da abertura do gol.
-- O motor registra sempre o último botão que efetivamente colidiu com a bola, inclusive em desvios e rebotes, armazenando equipe e número.
-- Na linha lateral, é marcado lateral para a equipe adversária à do último contato.
-- Na linha de fundo, contato da defesa gera escanteio para o ataque; contato do ataque gera tiro de meta para a defesa. O Jogador 1 defende o lado esquerdo e o Jogador 2, o direito, independentemente dos times escolhidos.
-- A bola é posicionada automaticamente no ponto apropriado, sem sobrepor outra peça, e o novo time recebe seus três toques completos.
-- Lateral, escanteio e tiro de meta são cobrados aplicando o estilingue diretamente na bola, sem usar botão.
-- No tiro de meta, a bola é posicionada no canto superior esquerdo da pequena área da equipe defensora.
+- A bola permanece em jogo quando atinge as linhas laterais ou o fundo do campo fora da abertura do gol.
+- Ao atingir uma dessas bordas, a bola é mantida dentro do campo e sua velocidade é refletida, com perda de energia.
+- O impacto da bola na borda reproduz o mesmo efeito sonoro usado para impactos dos botões na borda.
+- Não existem cobranças de lateral, escanteio ou tiro de meta.
 
 ### 4.7 Goleiro
 
@@ -157,8 +154,7 @@ Prioridade: **P0** = essencial para o MVP; **P1** = desejável no MVP se houver 
 | RF-12 | Detectar GOL (bola cruza a linha entre as traves) e atualizar placar. | P0 |
 | RF-13 | Aplicar regra de três toques (encadear lances enquanto tocar a bola). | P0 |
 | RF-14 | Resetar formação e bola ao centro após gol; conceder a saída. | P0 |
-| RF-15 | Detectar a saída completa, registrar o último botão e classificar lateral, escanteio ou tiro de meta conforme as regras reais. | P0 |
-| RF-15A | Cobrar lateral, escanteio e tiro de meta diretamente na bola com o estilingue. No tiro de meta, posicionar a bola no canto superior esquerdo da pequena área defensora. | P0 |
+| RF-15 | Manter a bola em jogo com ricochete e perda de energia ao atingir laterais ou fundo fora da abertura do gol. | P0 |
 | RF-16 | Aplicar consequência da falta (lance livre / troca de posse). | P0 |
 | RF-16A | Aplicar amarelo, segundo amarelo e vermelho direto conforme impacto e reincidência; remover o botão expulso. | P0 |
 | RF-17 | Exibir placar e cronômetro/contador de lances durante a partida. | P0 |
@@ -204,7 +200,6 @@ INICIO
           → AVALIACAO:
               - GOL?        → PLACAR++ → POSICIONAMENTO (saída do que sofreu)
               - FALTA?      → LANCE_LIVRE (troca de posse) → VEZ_DO_JOGADOR
-              - BOLA_FORA?  → reposição automática → posse do adversário do último toque
               - TOCOU_BOLA? → se toques < 3: mesmo jogador (MIRANDO); senão troca de vez
               - SEM_TOQUE?  → troca de vez → VEZ_DO_JOGADOR
       → checar FIM_DE_PARTIDA a cada avaliação
@@ -239,7 +234,7 @@ INICIO
 - **Compatibilidade:** navegadores atuais baseados em Chromium, Firefox e Safari (últimas 2 versões).
 - **Sem instalação / sem backend:** o MVP roda 100% no cliente; nenhuma conta ou servidor necessário.
 - **Justiça/Determinismo:** a física não deve favorecer aleatoriamente um lado; resultados reproduzíveis.
-- **Robustez:** o jogo nunca deve "travar" em um estado sem saída (ex.: bola parada em local inacessível deve ter regra de reposição/timeout).
+- **Robustez:** o jogo nunca deve "travar" em um estado sem saída (ex.: bola parada em local inacessível deve ter regra de recuperação/timeout).
 
 ---
 
@@ -255,7 +250,7 @@ INICIO
 
 ## 11. Roadmap / versões futuras
 
-- **v1.1:** goleiro jogável refinado, pênaltis, escanteios/tiro de meta reais, efeitos sonoros completos.
+- **v1.1:** goleiro jogável refinado, pênaltis e efeitos sonoros completos.
 - **v1.2:** IA (modo 1 jogador) com níveis de dificuldade.
 - **v1.3:** customização de times/uniformes, formações salvas.
 - **v2.0:** multiplayer online (turnos assíncronos ou tempo real), ranking e torneios.
@@ -269,7 +264,7 @@ INICIO
 - **Q3.** Lance livre após falta: repor na posição da bola ou no ponto da infração?
 - **Q4.** Incluir pênalti (falta na área) já no MVP ou deixar para v1.1?
 - **Q5.** Colidir com botão do próprio time antes da bola: só encerra o turno ou tem outra consequência?
-- **Q6. Resolvida.** A reposição é automática junto à borda, com posse do adversário do último toque.
+- **Q6. Resolvida.** A bola permanece em jogo e rebate nas laterais e no fundo, com perda de energia.
 - **Q7. Resolvida.** O goleiro é jogável e sua movimentação fica limitada à grande área do próprio time.
 - **Q8.** Critério padrão de fim de jogo: primeiro a 3 gols, limite de lances, ou tempo?
 

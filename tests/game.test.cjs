@@ -78,7 +78,6 @@ const game = api.state;
 
 function prepareMoving() {
   game.phase = 'moving';
-  game.restart = null;
   game.pendingOutcome = null;
   game.foul = false;
   game.foulImpactSpeed = 0;
@@ -142,75 +141,50 @@ assert.equal(game.activeTeam, 0, 'a falta entrega a posse ao adversário');
 assert.equal(game.teamFouls[1], 1, 'a falta deve entrar no total da equipe');
 
 prepareMoving();
-game.lastTouchedTeam = 0;
-game.lastTouchedPlayer = { team: 0, number: 10 };
-game.ball.x = api.constants.FIELD.right + game.ball.radius + 1;
-game.ball.y = 400;
+const teamBeforeRightRebound = game.activeTeam;
+game.ball.x = api.constants.FIELD.right - game.ball.radius + 1;
+game.ball.y = 220;
 game.ball.vx = 240;
 api.update(1 / 120);
-assert.equal(game.activeTeam, 1, 'a saída pela linha de fundo deve dar a posse ao adversário do último toque');
-assert.equal(game.restart.type, 'goalKick', 'toque do ataque na linha de fundo deve gerar tiro de meta');
 assert.equal(
   game.ball.x,
-  api.constants.GOAL_AREA.rightStart + game.ball.radius + 9,
-  'o tiro de meta direito deve começar no canto esquerdo da pequena área',
+  api.constants.FIELD.right - game.ball.radius,
+  'a bola deve permanecer dentro do campo ao atingir o fundo direito',
 );
-assert.equal(
-  game.ball.y,
-  api.constants.GOAL_AREA.top + game.ball.radius + 9,
-  'o tiro de meta deve começar no canto superior da pequena área',
-);
-assert.equal(game.ball.vx, 0, 'a bola reposta deve ficar parada');
-assert.equal(
-  api.constants.DIRECT_BALL_MAX_DRAG,
-  api.constants.MAX_DRAG,
-  'a bola e os botões devem usar exatamente a mesma escala de força do estilingue',
-);
+assert.ok(game.ball.vx < 0, 'a bola deve voltar para a esquerda após atingir o fundo direito');
+assert.equal(game.activeTeam, teamBeforeRightRebound, 'o rebote não deve trocar a posse durante o lance');
+assert.equal(game.pendingOutcome, null, 'o rebote fora das traves não deve encerrar o lance');
 
-game.activeTeam = 1;
 prepareMoving();
-game.lastTouchedTeam = 1;
-game.lastTouchedPlayer = { team: 1, number: 10 };
-game.ball.x = api.constants.FIELD.left - game.ball.radius - 1;
-game.ball.y = 400;
+game.ball.x = api.constants.FIELD.left + game.ball.radius - 1;
+game.ball.y = 220;
 game.ball.vx = -240;
 api.update(1 / 120);
-assert.equal(game.restart.type, 'goalKick', 'toque do ataque no fundo esquerdo também deve gerar tiro de meta');
-assert.equal(game.activeTeam, 0, 'o tiro de meta esquerdo deve pertencer à defesa');
-assert.deepEqual(
-  [game.ball.x, game.ball.y],
-  [
-    api.constants.FIELD.left + game.ball.radius + 9,
-    api.constants.GOAL_AREA.top + game.ball.radius + 9,
-  ],
-  'o tiro de meta esquerdo deve começar no canto superior esquerdo da pequena área',
-);
+assert.equal(game.ball.x, api.constants.FIELD.left + game.ball.radius, 'a bola deve permanecer dentro do fundo esquerdo');
+assert.ok(game.ball.vx > 0, 'a bola deve voltar para a direita após atingir o fundo esquerdo');
 
-game.activeTeam = 1;
 prepareMoving();
-game.lastTouchedTeam = 1;
-game.lastTouchedPlayer = { team: 1, number: 7 };
 game.ball.x = 724;
-game.ball.y = api.constants.FIELD.top - game.ball.radius - 1;
+game.ball.y = api.constants.FIELD.top + game.ball.radius - 1;
 game.ball.vx = 0;
 game.ball.vy = -240;
 api.update(1 / 120);
-assert.equal(game.activeTeam, 0, 'a saída pela lateral deve dar a posse ao adversário do último toque');
-assert.equal(game.restart.type, 'throwIn', 'a saída pela lateral deve gerar cobrança de lateral');
-assert.ok(game.ball.y > api.constants.FIELD.top, 'a bola deve ser reposta dentro do campo após sair pela lateral');
+assert.equal(game.ball.y, api.constants.FIELD.top + game.ball.radius, 'a bola deve permanecer dentro da lateral superior');
+assert.ok(game.ball.vy > 0, 'a bola deve descer após atingir a lateral superior');
 
-game.activeTeam = 1;
 prepareMoving();
-game.lastTouchedTeam = 1;
-game.lastTouchedPlayer = { team: 1, number: 3 };
-game.ball.x = api.constants.FIELD.right + game.ball.radius + 1;
-game.ball.y = 220;
-game.ball.vx = 180;
-game.ball.vy = 0;
+game.ball.x = 724;
+game.ball.y = api.constants.FIELD.bottom - game.ball.radius + 1;
+game.ball.vx = 0;
+game.ball.vy = 240;
 api.update(1 / 120);
-assert.equal(game.restart.type, 'corner', 'toque da defesa na própria linha de fundo deve gerar escanteio');
-assert.equal(game.activeTeam, 0, 'o escanteio deve pertencer à equipe atacante');
-assert.equal(game.restart.lastTouch.number, 3, 'a decisão deve preservar o número do último jogador que tocou');
+assert.equal(game.ball.y, api.constants.FIELD.bottom - game.ball.radius, 'a bola deve permanecer dentro da lateral inferior');
+assert.ok(game.ball.vy < 0, 'a bola deve subir após atingir a lateral inferior');
+assert.equal(
+  Math.abs(game.ball.vy) < 240,
+  true,
+  'o ricochete deve perder velocidade para não prolongar demais o lance',
+);
 
 game.activeTeam = 0;
 prepareMoving();

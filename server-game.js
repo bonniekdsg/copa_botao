@@ -6,19 +6,15 @@ const FIELD = { left: 40, right: 1408, top: 29, bottom: 1042 };
 const GOAL = { top: 428, bottom: 615 };
 const GOAL_LINE = { left: 87, right: 1361 };
 const PENALTY_AREA = { top: 226, bottom: 836, leftEnd: 262, rightStart: 1186 };
-const GOAL_AREA = { top: 384, bottom: 679, leftEnd: 120, rightStart: 1328 };
 const PLAYER_RADIUS = 31;
 const BALL_RADIUS = 18;
 const MAX_DRAG = 205;
 const MAX_SPEED = 1420;
+const BALL_EDGE_RESTITUTION = 0.68;
 const CARD_THRESHOLD = { yellow: MAX_SPEED * 0.3, red: MAX_SPEED * 0.7 };
 const STOP_SPEED = 14;
 const FRICTION = { player: 520, ball: 420 };
 const TEAM_NAMES = ['Argentina', 'Espanha'];
-
-function distance(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
 
 class ServerGame {
   constructor({ starter = 0, teamChoices = [0, 1] } = {}) {
@@ -42,9 +38,6 @@ class ServerGame {
       foul: false,
       foulImpactSpeed: 0,
       ownBlock: false,
-      lastTouchedTeam: null,
-      lastTouchedPlayer: null,
-      restart: null,
       pendingOutcome: null,
       stillFrames: 0,
       goalEndsMatch: false,
@@ -110,9 +103,6 @@ class ServerGame {
       radius: BALL_RADIUS,
       mass: 0.72,
     };
-    this.state.lastTouchedTeam = null;
-    this.state.lastTouchedPlayer = null;
-    this.state.restart = null;
     this.state.launchPlayer = null;
   }
 
@@ -146,7 +136,6 @@ class ServerGame {
       teamFouls: [...state.teamFouls],
       touchesUsed: state.touchesUsed,
       shots: state.shots,
-      restart: state.restart ? JSON.parse(JSON.stringify(state.restart)) : null,
       players: state.players.map((player) => ({
         type: 'player',
         team: player.team,
@@ -168,13 +157,10 @@ class ServerGame {
     if (state.phase !== 'ready') return { ok: false, error: 'Aguarde o lance atual terminar.' };
     if (Number(side) !== state.activeTeam) return { ok: false, error: 'Não é a sua vez.' };
 
-    const directRestart = ['throwIn', 'corner', 'goalKick'].includes(state.restart?.type);
     let selected;
     if (command.bodyType === 'ball') {
-      if (!directRestart) return { ok: false, error: 'A bola só pode ser lançada diretamente em uma reposição.' };
-      selected = state.ball;
+      return { ok: false, error: 'Selecione um botão do seu time para fazer a jogada.' };
     } else {
-      if (directRestart) return { ok: false, error: 'Esta reposição deve ser cobrada diretamente na bola.' };
       selected = state.players.find((player) =>
         player.team === side && player.number === Number(command.number) && !player.discipline.red,
       );
@@ -192,11 +178,9 @@ class ServerGame {
     const speed = (drag / MAX_DRAG) * MAX_SPEED;
     selected.vx = (dx / vectorLength) * speed;
     selected.vy = (dy / vectorLength) * speed;
-    state.launchPlayer = selected.type === 'ball' ? null : selected;
-    state.ballTouched = selected.type === 'ball';
-    state.firstContact = selected.type === 'ball' ? 'ball' : null;
-    if (selected.type === 'ball') this.setLastTouch(side, null);
-    state.restart = null;
+    state.launchPlayer = selected;
+    state.ballTouched = false;
+    state.firstContact = null;
     state.foul = false;
     state.foulImpactSpeed = 0;
     state.ownBlock = false;
@@ -204,7 +188,6 @@ class ServerGame {
     state.stillFrames = 0;
     state.shots += 1;
     state.phase = 'moving';
-    if (selected.type === 'ball') this.emit('sound', { sound: 'kick' });
     this.emit('shot-started', { side });
     return { ok: true };
   }
@@ -328,10 +311,6 @@ class ServerGame {
     if (relative < 0) {
       const impactSpeed = -relative;
       const involvesBall = a.type === 'ball' || b.type === 'ball';
-      if (impactSpeed > 5 && involvesBall) {
-        const touchingPlayer = a.type === 'player' ? a : b.type === 'player' ? b : null;
-        if (touchingPlayer) this.setLastTouch(touchingPlayer.team, touchingPlayer.number);
-      }
       if (impactSpeed > 25) {
         if (involvesBall && !this.kickSoundThisTick) {
           this.kickSoundThisTick = true;
@@ -368,7 +347,6 @@ class ServerGame {
           this.emit('banner', { text: 'Chute!', kind: 'neutral', duration: 600 });
         }
         state.ballTouched = true;
-        this.setLastTouch(launched.team, launched.number);
       }
       return;
     }
@@ -387,11 +365,6 @@ class ServerGame {
 
   isShootingZone(player) {
     return player.team === 0 ? player.x > 1110 : player.x < 338;
-  }
-
-  setLastTouch(team, number) {
-    this.state.lastTouchedTeam = team;
-    this.state.lastTouchedPlayer = { team, number };
   }
 
   checkBallBoundary(previousBall) {
@@ -417,16 +390,37 @@ class ServerGame {
 
     if ((currentLeftEdge < GOAL_LINE.left && insideGoalMouth) || crossedLeftBetweenPosts) {
       state.pendingOutcome = { type: 'goal', team: 1 };
-    } else if ((currentRightEdge > GOAL_LINE.right && insideGoalMouth) || crossedRightBetweenPosts) {
+      return;
+    }
+    if ((currentRightEdge > GOAL_LINE.right && insideGoalMouth) || crossedRightBetweenPosts) {
       state.pendingOutcome = { type: 'goal', team: 0 };
-    } else if (ball.y + ball.radius < FIELD.top) {
-      state.pendingOutcome = { type: 'out', side: 'top', x: ball.x, y: ball.y };
-    } else if (ball.y - ball.radius > FIELD.bottom) {
-      state.pendingOutcome = { type: 'out', side: 'bottom', x: ball.x, y: ball.y };
-    } else if (ball.x + ball.radius < FIELD.left) {
-      state.pendingOutcome = { type: 'out', side: 'left', x: ball.x, y: ball.y };
-    } else if (ball.x - ball.radius > FIELD.right) {
-      state.pendingOutcome = { type: 'out', side: 'right', x: ball.x, y: ball.y };
+      return;
+    }
+
+    let hitEdge = false;
+    if (ball.x - ball.radius < FIELD.left) {
+      hitEdge ||= ball.vx < -30;
+      ball.x = FIELD.left + ball.radius;
+      ball.vx = Math.abs(ball.vx) * BALL_EDGE_RESTITUTION;
+    }
+    if (ball.x + ball.radius > FIELD.right) {
+      hitEdge ||= ball.vx > 30;
+      ball.x = FIELD.right - ball.radius;
+      ball.vx = -Math.abs(ball.vx) * BALL_EDGE_RESTITUTION;
+    }
+    if (ball.y - ball.radius < FIELD.top) {
+      hitEdge ||= ball.vy < -30;
+      ball.y = FIELD.top + ball.radius;
+      ball.vy = Math.abs(ball.vy) * BALL_EDGE_RESTITUTION;
+    }
+    if (ball.y + ball.radius > FIELD.bottom) {
+      hitEdge ||= ball.vy > 30;
+      ball.y = FIELD.bottom - ball.radius;
+      ball.vy = -Math.abs(ball.vy) * BALL_EDGE_RESTITUTION;
+    }
+    if (hitEdge && !this.edgeSoundThisTick) {
+      this.edgeSoundThisTick = true;
+      this.emit('sound', { sound: 'edge' });
     }
   }
 
@@ -511,11 +505,6 @@ class ServerGame {
       }
       this.switchTurn();
       this.emit('discipline', { ...decision, decisionType: decision.type });
-    } else if (outcome?.type === 'out') {
-      state.teamFoulStreak[actingTeam] = 0;
-      const restart = this.prepareRestart(outcome, actingTeam);
-      state.phase = 'ready';
-      this.emit('ball-out', { restart: restart.type, text: restart.message });
     } else if (state.ballTouched && !state.ownBlock) {
       state.teamFoulStreak[actingTeam] = 0;
       state.touchesUsed += 1;
@@ -552,68 +541,6 @@ class ServerGame {
     this.state.activeTeam = 1 - this.state.activeTeam;
     this.state.touchesUsed = 0;
     this.state.phase = 'ready';
-  }
-
-  prepareRestart(outcome, actingTeam) {
-    const state = this.state;
-    const lastTouch = state.lastTouchedPlayer || {
-      team: state.lastTouchedTeam ?? actingTeam,
-      number: null,
-    };
-    const isTouchline = outcome.side === 'top' || outcome.side === 'bottom';
-    let type;
-    let receivingTeam;
-    if (isTouchline) {
-      type = 'throwIn';
-      receivingTeam = 1 - lastTouch.team;
-    } else {
-      const defendingTeam = outcome.side === 'left' ? 0 : 1;
-      if (lastTouch.team === defendingTeam) {
-        type = 'corner';
-        receivingTeam = 1 - defendingTeam;
-      } else {
-        type = 'goalKick';
-        receivingTeam = defendingTeam;
-      }
-    }
-    state.activeTeam = receivingTeam;
-    state.touchesUsed = 0;
-    state.restart = { type, team: receivingTeam, side: outcome.side, lastTouch };
-    this.placeRestartBall(outcome, type, receivingTeam);
-    const contact = `${this.sideLabel(lastTouch.team)}${lastTouch.number ? ` #${lastTouch.number}` : ''}`;
-    const title = type === 'throwIn' ? 'Lateral' : type === 'corner' ? 'Escanteio' : 'Tiro de meta';
-    return { type, message: `${title} para ${this.sideLabel(receivingTeam)} · último toque ${contact}` };
-  }
-
-  placeRestartBall(outcome, type, receivingTeam) {
-    const state = this.state;
-    const ball = state.ball;
-    const inset = ball.radius + 9;
-    if (type === 'throwIn') {
-      ball.x = Math.min(FIELD.right - inset, Math.max(FIELD.left + inset, outcome.x));
-      ball.y = outcome.side === 'top' ? FIELD.top + inset : FIELD.bottom - inset;
-    } else if (type === 'corner') {
-      ball.x = outcome.side === 'left' ? FIELD.left + inset : FIELD.right - inset;
-      ball.y = outcome.y < HEIGHT / 2 ? FIELD.top + inset : FIELD.bottom - inset;
-    } else {
-      ball.x = receivingTeam === 0 ? FIELD.left + inset : GOAL_AREA.rightStart + inset;
-      ball.y = GOAL_AREA.top + inset;
-    }
-    for (let attempt = 0; attempt < 24; attempt += 1) {
-      const overlaps = state.players.some((player) => distance(ball, player) < ball.radius + player.radius + 7);
-      if (!overlaps) break;
-      if (type === 'throwIn') {
-        ball.x += 55;
-        if (ball.x > FIELD.right - inset) ball.x = FIELD.left + inset;
-      } else {
-        ball.y += 55;
-        if (ball.y > FIELD.bottom - inset) ball.y = FIELD.top + inset;
-      }
-    }
-    ball.vx = 0;
-    ball.vy = 0;
-    state.lastTouchedTeam = null;
-    state.lastTouchedPlayer = null;
   }
 
   isMatchOver() {
@@ -656,11 +583,11 @@ module.exports = {
     GOAL,
     GOAL_LINE,
     PENALTY_AREA,
-    GOAL_AREA,
     PLAYER_RADIUS,
     BALL_RADIUS,
     MAX_DRAG,
     MAX_SPEED,
+    BALL_EDGE_RESTITUTION,
     CARD_THRESHOLD,
     STOP_SPEED,
     FRICTION,

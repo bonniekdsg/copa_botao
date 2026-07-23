@@ -78,7 +78,7 @@ assert.equal(await evaluate('typeof window.__copaBotao'), 'object', 'a API do jo
 await evaluate(`(() => {
   const api = window.__copaBotao;
   api.clearBannerQueue();
-  api.showBanner('Lateral para a Argentina', 'neutral', 10000, {
+  api.showBanner('Falta simples', 'neutral', 10000, {
     dismissible: true,
     actionLabel: 'Fechar',
   });
@@ -89,7 +89,7 @@ await evaluate(`(() => {
 })()`);
 assert.equal(
   await evaluate(`document.querySelector('#eventBannerText').textContent`),
-  'Lateral para a Argentina',
+  'Falta simples',
   'a primeira notificação deve permanecer visível',
 );
 assert.equal(
@@ -349,103 +349,54 @@ assert.equal(await evaluate('window.__copaBotao.state.discipline[0][2].yellow'),
 assert.equal(await evaluate("document.querySelector('#yellow0').textContent"), '1', 'o HUD deve exibir o cartão amarelo');
 
 await evaluate(`(() => {
-  window.__whistlesBeforeBallOut = window.__playedAudio.filter((path) => path === '/assets/apito.mp3').length;
   const api = window.__copaBotao;
   api.state.phase = 'moving';
   api.state.activeTeam = 0;
-  api.state.lastTouchedTeam = 0;
-  api.state.lastTouchedPlayer = { team: 0, number: 10 };
   api.state.launchPlayer = api.state.players.find((player) => player.team === 0);
   api.state.foul = false;
   api.state.pendingOutcome = null;
   api.state.ball.x = 724;
-  api.state.ball.y = api.constants.FIELD.top - api.state.ball.radius - 1;
+  api.state.ball.y = api.constants.FIELD.top + api.state.ball.radius - 1;
   api.state.ball.vx = 0;
   api.state.ball.vy = -120;
   api.update(1 / 120);
 })()`);
-assert.equal(await evaluate('window.__copaBotao.state.activeTeam'), 1, 'a bola fora deve transferir a posse ao adversário');
-assert.ok(await evaluate('window.__copaBotao.state.ball.y > window.__copaBotao.constants.FIELD.top'), 'a reposição deve deixar a bola dentro do campo');
-assert.equal(await evaluate('window.__copaBotao.state.restart.type'), 'throwIn', 'a saída pela lateral deve criar um lateral');
-assert.equal(
-  await evaluate("window.__playedAudio.filter((path) => path === '/assets/apito.mp3').length"),
-  await evaluate('window.__whistlesBeforeBallOut + 1'),
-  'a saída pela lateral deve tocar apito.mp3',
+assert.equal(await evaluate('window.__copaBotao.state.activeTeam'), 0, 'o rebote não deve trocar a equipe ativa');
+assert.ok(
+  await evaluate(`(() => {
+    const api = window.__copaBotao;
+    const limit = api.constants.FIELD.top + api.state.ball.radius;
+    return api.state.ball.y >= limit && api.state.ball.y < limit + 12;
+  })()`),
+  'a bola deve permanecer dentro da lateral superior',
 );
-
-const restartBall = await evaluate(`(() => {
-  const ball = window.__copaBotao.state.ball;
-  return { x: ball.x, y: ball.y };
-})()`);
-const restartPoint = {
-  x: rect.left + (restartBall.x / 1448) * rect.width,
-  y: rect.top + (restartBall.y / 1086) * rect.height,
-};
-const restartPull = { x: restartPoint.x, y: restartPoint.y - 60 };
-await command('Input.dispatchMouseEvent', { type: 'mousePressed', ...restartPoint, button: 'left', buttons: 1, clickCount: 1 });
-assert.equal(await evaluate('window.__copaBotao.state.selected?.type'), 'ball', 'o lateral deve selecionar diretamente a bola');
-await command('Input.dispatchMouseEvent', { type: 'mouseMoved', ...restartPull, button: 'left', buttons: 1 });
-await command('Input.dispatchMouseEvent', { type: 'mouseReleased', ...restartPull, button: 'left', buttons: 0, clickCount: 1 });
-assert.equal(await evaluate('window.__copaBotao.state.shots'), 2, 'a cobrança direta na bola deve registrar um lance');
-assert.equal(await evaluate('window.__copaBotao.state.restart'), null, 'a cobrança deve encerrar o estado de lateral');
+assert.ok(await evaluate('window.__copaBotao.state.ball.vy > 0'), 'a bola deve rebater para baixo na lateral superior');
+assert.equal(await evaluate('window.__copaBotao.state.phase'), 'moving', 'o rebote deve manter o lance em movimento');
 
 await evaluate(`(() => {
-  window.__whistlesBeforeGoalLineOut = window.__playedAudio.filter((path) => path === '/assets/apito.mp3').length;
   const api = window.__copaBotao;
   api.state.players.forEach((player) => { player.vx = 0; player.vy = 0; });
   api.state.phase = 'moving';
   api.state.activeTeam = 0;
-  api.state.lastTouchedTeam = 0;
-  api.state.lastTouchedPlayer = { team: 0, number: 10 };
   api.state.launchPlayer = api.state.players.find((player) => player.team === 0 && player.number === 10);
   api.state.foul = false;
   api.state.pendingOutcome = null;
-  api.state.ball.x = api.constants.FIELD.right + api.state.ball.radius + 1;
-  api.state.ball.y = 400;
+  api.state.ball.x = api.constants.FIELD.right - api.state.ball.radius + 1;
+  api.state.ball.y = 220;
   api.state.ball.vx = 120;
   api.state.ball.vy = 0;
   api.update(1 / 120);
 })()`);
-assert.equal(await evaluate('window.__copaBotao.state.restart.type'), 'goalKick', 'o último toque do ataque deve gerar tiro de meta');
-assert.equal(await evaluate('window.__copaBotao.state.activeTeam'), 1, 'o tiro de meta deve pertencer à defesa');
-assert.equal(
-  await evaluate("window.__playedAudio.filter((path) => path === '/assets/apito.mp3').length"),
-  await evaluate('window.__whistlesBeforeGoalLineOut + 1'),
-  'a saída pela linha de fundo deve tocar apito.mp3',
-);
-assert.deepEqual(
+assert.ok(
   await evaluate(`(() => {
     const api = window.__copaBotao;
-    return [api.state.ball.x, api.state.ball.y];
+    const limit = api.constants.FIELD.right - api.state.ball.radius;
+    return api.state.ball.x <= limit && api.state.ball.x > limit - 12;
   })()`),
-  await evaluate(`(() => {
-    const api = window.__copaBotao;
-    const inset = api.state.ball.radius + 9;
-    return [api.constants.GOAL_AREA.rightStart + inset, api.constants.GOAL_AREA.top + inset];
-  })()`),
-  'a bola deve ficar no canto superior esquerdo da pequena área direita',
+  'a bola deve permanecer dentro do fundo direito',
 );
-
-const goalKickContext = await evaluate(`(() => {
-  const api = window.__copaBotao;
-  const rect = document.querySelector('#gameCanvas').getBoundingClientRect();
-  return {
-    rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-    ball: { x: api.state.ball.x, y: api.state.ball.y },
-  };
-})()`);
-const goalKickPoint = {
-  x: goalKickContext.rect.left + (goalKickContext.ball.x / 1448) * goalKickContext.rect.width,
-  y: goalKickContext.rect.top + (goalKickContext.ball.y / 1086) * goalKickContext.rect.height,
-};
-// O estilingue é puxado para fora para lançar a bola de volta ao interior do campo.
-const goalKickPull = { x: goalKickPoint.x + 60, y: goalKickPoint.y };
-await command('Input.dispatchMouseEvent', { type: 'mousePressed', ...goalKickPoint, button: 'left', buttons: 1, clickCount: 1 });
-assert.equal(await evaluate('window.__copaBotao.state.selected?.type'), 'ball', 'o tiro de meta deve selecionar diretamente a bola');
-await command('Input.dispatchMouseEvent', { type: 'mouseMoved', ...goalKickPull, button: 'left', buttons: 1 });
-await command('Input.dispatchMouseEvent', { type: 'mouseReleased', ...goalKickPull, button: 'left', buttons: 0, clickCount: 1 });
-assert.equal(await evaluate('window.__copaBotao.state.shots'), 3, 'a cobrança do tiro de meta deve registrar um lance');
-assert.equal(await evaluate('window.__copaBotao.state.restart'), null, 'a cobrança deve encerrar o estado de tiro de meta');
+assert.ok(await evaluate('window.__copaBotao.state.ball.vx < 0'), 'a bola deve rebater para a esquerda no fundo direito');
+assert.equal(await evaluate('window.__copaBotao.state.activeTeam'), 0, 'o rebote no fundo não deve trocar a posse');
 
 await evaluate(`(() => {
   const api = window.__copaBotao;

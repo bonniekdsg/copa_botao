@@ -862,8 +862,6 @@ kbd { padding: 2px 4px; margin-left: 4px; color: #89938c; background: rgba(255,2
   .touch-counter i { width: 13px; }
   .board-wrap { min-height: 360px; aspect-ratio: auto; }
   #gameCanvas { position: absolute; top: 50%; left: 50%; width: auto; height: 100%; transform: translate(-50%, -50%); }
-  .board-wrap.focus-left #gameCanvas { left: 0; transform: translateY(-50%); }
-  .board-wrap.focus-right #gameCanvas { right: 0; left: auto; transform: translateY(-50%); }
   body:not(.game-active) .board-wrap { height: 100dvh; min-height: 560px; aspect-ratio: auto; }
   .start-overlay { align-items: stretch; padding: 0; overflow: hidden; }
   .start-card { min-height: 0; padding: 0; }

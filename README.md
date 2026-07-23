@@ -60,18 +60,16 @@ Mantenha apenas uma instância enquanto o jogo não usar armazenamento compartil
 - Arraste na direção oposta ao lance e solte.
 - Use `Esc` ou **Cancelar mira** para desistir antes de soltar.
 - Cada toque válido na bola mantém a posse, até o limite de três.
-- Na lateral, a posse passa ao adversário do último botão que tocou na bola.
-- Na linha de fundo, toque da defesa gera escanteio; toque do ataque gera tiro de meta.
-- Laterais, escanteios e tiros de meta são cobrados diretamente na bola com o estilingue, sem usar um botão.
-- No tiro de meta, a bola começa no canto superior esquerdo da pequena área da equipe defensora.
+- A bola rebate nas laterais e no fundo do campo, permanecendo em jogo.
+- Os rebotes nas bordas perdem parte da velocidade e produzem o efeito sonoro de impacto.
 - Cada goleiro pode ser lançado normalmente, mas permanece dentro da grande área do seu time.
 - Atingir um rival antes da bola é falta. Impactos médios geram amarelo, impactos fortes geram vermelho direto e o segundo amarelo expulsa o botão.
 
-Laterais e outras reposições exibem um aviso por 3 segundos; faltas simples, por 3,5 segundos; e cartões, por 5 segundos. Os avisos entram em uma fila para não se sobrescreverem e podem ser fechados antes. Alertas de conexão permanecem visíveis até a reconexão.
+Faltas simples exibem um aviso por 3,5 segundos e cartões, por 5 segundos. Os avisos entram em uma fila para não se sobrescreverem e podem ser fechados antes. Alertas de conexão permanecem visíveis até a reconexão.
 
 Vence quem marcar três gols. Ao marcar, a imagem de comemoração ocupa a tela por alguns segundos; depois, o campo retorna para a nova saída. Se ninguém chegar a três, a partida termina após 40 lances.
 
-O áudio usa os arquivos da pasta `assets`: `sound_background.mp3` exclusivamente como ambiente da tela inicial, clique nos controles, chute ao atingir a bola, apito na abertura da partida, após cada gol e quando a bola sai pelas laterais ou linhas de fundo, torcida ambiente em repetição durante o jogo e `final.mp3` no encerramento.
+O áudio usa os arquivos da pasta `assets`: `sound_background.mp3` exclusivamente como ambiente da tela inicial, clique nos controles, chute ao atingir a bola, efeito de borda nos ricochetes, apito na abertura da partida e após cada gol, torcida ambiente em repetição durante o jogo e `final.mp3` no encerramento.
 
 A música da abertura é pré-carregada com prioridade e começa assim que o navegador permite reprodução automática. Navegadores que bloqueiam áudio sem interação fazem uma nova tentativa no primeiro toque do usuário.
 

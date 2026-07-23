@@ -10,12 +10,11 @@
   const GOAL_LINE = { left: 87, right: 1361 };
   // Limites das grandes áreas desenhadas no campo.
   const PENALTY_AREA = { top: 226, bottom: 836, leftEnd: 262, rightStart: 1186 };
-  const GOAL_AREA = { top: 384, bottom: 679, leftEnd: 120, rightStart: 1328 };
   const PLAYER_RADIUS = 31;
   const BALL_RADIUS = 18;
   const MAX_DRAG = 205;
-  const DIRECT_BALL_MAX_DRAG = MAX_DRAG;
   const MAX_SPEED = 1420;
+  const BALL_EDGE_RESTITUTION = 0.68;
   const CARD_THRESHOLD = { yellow: MAX_SPEED * 0.3, red: MAX_SPEED * 0.7 };
   const STOP_SPEED = 14;
   const FRICTION = { player: 520, ball: 420 };
@@ -120,9 +119,6 @@
     foul: false,
     foulImpactSpeed: 0,
     ownBlock: false,
-    lastTouchedTeam: null,
-    lastTouchedPlayer: null,
-    restart: null,
     pendingOutcome: null,
     stillFrames: 0,
     bannerTimer: 0,
@@ -407,7 +403,6 @@
     state.shots = snapshot.shots;
     state.activeTeam = snapshot.activeTeam;
     state.startingTeam = snapshot.startingTeam;
-    state.restart = snapshot.restart;
     state.players = snapshot.players.map((player) => ({
       ...player,
       discipline: state.discipline[player.team][player.number],
@@ -462,12 +457,6 @@
         showGoalCelebration();
       } else if (event.type === 'goal-complete') {
         hideGoalCelebration();
-      } else if (event.type === 'ball-out') {
-        playSound('whistle');
-        showBanner(event.text, 'neutral', 3000, {
-          dismissible: true,
-          actionLabel: 'Fechar',
-        });
       } else if (event.type === 'discipline') {
         playSound(event.decisionType === 'yellow' ? 'yellowCard' : event.decisionType === 'red' ? 'redCard' : 'foul');
         const isCard = event.decisionType === 'yellow' || event.decisionType === 'red';
@@ -638,9 +627,6 @@
       makePlayer(1, 11, 828, 836),
     ].filter((player) => !player.discipline.red);
     state.ball = { type: 'ball', x: WIDTH / 2, y: HEIGHT / 2, vx: 0, vy: 0, radius: BALL_RADIUS, mass: 0.72 };
-    state.lastTouchedTeam = null;
-    state.lastTouchedPlayer = null;
-    state.restart = null;
     clearAim();
   }
 
@@ -760,11 +746,6 @@
 
   function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 
-  function setLastTouch(team, number) {
-    state.lastTouchedTeam = team;
-    state.lastTouchedPlayer = { team, number };
-  }
-
   function getPlayerAt(point) {
     let closest = null;
     let best = Infinity;
@@ -789,12 +770,7 @@
       }
     }
     const point = getPointerPosition(event);
-    const directBallRestart = ['throwIn', 'corner', 'goalKick'].includes(state.restart?.type);
-    const selectedBody = directBallRestart && distance(point, state.ball) <= state.ball.radius + 16
-      ? state.ball
-      : directBallRestart
-        ? null
-        : getPlayerAt(point);
+    const selectedBody = getPlayerAt(point);
     if (!selectedBody) {
       clearAim();
       draw();
@@ -822,8 +798,7 @@
     const dx = point.x - state.selected.x;
     const dy = point.y - state.selected.y;
     const length = Math.hypot(dx, dy);
-    const maxDrag = state.selected.type === 'ball' ? DIRECT_BALL_MAX_DRAG : MAX_DRAG;
-    const ratio = length > maxDrag ? maxDrag / length : 1;
+    const ratio = length > MAX_DRAG ? MAX_DRAG / length : 1;
     state.dragPoint = { x: state.selected.x + dx * ratio, y: state.selected.y + dy * ratio };
     updatePower();
     draw();
@@ -844,9 +819,7 @@
       draw();
       return;
     }
-    const maxDrag = state.selected.type === 'ball' ? DIRECT_BALL_MAX_DRAG : MAX_DRAG;
-    const speed = (drag / maxDrag) * MAX_SPEED;
-    const directBallRestart = state.selected.type === 'ball';
+    const speed = (drag / MAX_DRAG) * MAX_SPEED;
     if (online.enabled) {
       const command = {
         type: 'shot',
@@ -874,11 +847,9 @@
     }
     state.selected.vx = (dx / drag) * speed;
     state.selected.vy = (dy / drag) * speed;
-    state.launchPlayer = directBallRestart ? null : state.selected;
-    state.ballTouched = directBallRestart;
-    state.firstContact = directBallRestart ? 'ball' : null;
-    if (directBallRestart) setLastTouch(state.activeTeam, null);
-    state.restart = null;
+    state.launchPlayer = state.selected;
+    state.ballTouched = false;
+    state.firstContact = null;
     state.foul = false;
     state.foulImpactSpeed = 0;
     state.ownBlock = false;
@@ -894,7 +865,6 @@
     ui.powerMeter.classList.remove('show');
     ui.cancelButton.disabled = true;
     updateUI();
-    if (directBallRestart) playSound('kick');
   }
 
   function clearAim() {
@@ -909,8 +879,7 @@
 
   function updatePower() {
     if (!state.selected || !state.dragPoint) return;
-    const maxDrag = state.selected.type === 'ball' ? DIRECT_BALL_MAX_DRAG : MAX_DRAG;
-    const pct = Math.round(Math.min(1, distance(state.selected, state.dragPoint) / maxDrag) * 100);
+    const pct = Math.round(Math.min(1, distance(state.selected, state.dragPoint) / MAX_DRAG) * 100);
     ui.powerFill.style.width = `${pct}%`;
     ui.powerText.textContent = `${pct}%`;
     ui.powerMeter.classList.toggle('show', pct > 3);
@@ -1022,10 +991,6 @@
     const relative = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
     if (relative < 0) {
       const impactSpeed = -relative;
-      if (impactSpeed > 5 && (a.type === 'ball' || b.type === 'ball')) {
-        const touchingPlayer = a.type === 'player' ? a : b.type === 'player' ? b : null;
-        if (touchingPlayer) setLastTouch(touchingPlayer.team, touchingPlayer.number);
-      }
       if (impactSpeed > 25) {
         if (a.type === 'ball' || b.type === 'ball') playSound('kick');
         else playSound('piece');
@@ -1058,7 +1023,6 @@
           }
         }
         state.ballTouched = true;
-        setLastTouch(launched.team, launched.number);
       }
       return;
     }
@@ -1108,15 +1072,28 @@
       return;
     }
 
-    if (ball.y + ball.radius < FIELD.top) {
-      state.pendingOutcome = { type: 'out', side: 'top', x: ball.x, y: ball.y };
-    } else if (ball.y - ball.radius > FIELD.bottom) {
-      state.pendingOutcome = { type: 'out', side: 'bottom', x: ball.x, y: ball.y };
-    } else if (ball.x + ball.radius < FIELD.left) {
-      state.pendingOutcome = { type: 'out', side: 'left', x: ball.x, y: ball.y };
-    } else if (ball.x - ball.radius > FIELD.right) {
-      state.pendingOutcome = { type: 'out', side: 'right', x: ball.x, y: ball.y };
+    let hitEdge = false;
+    if (ball.x - ball.radius < FIELD.left) {
+      hitEdge ||= ball.vx < -30;
+      ball.x = FIELD.left + ball.radius;
+      ball.vx = Math.abs(ball.vx) * BALL_EDGE_RESTITUTION;
     }
+    if (ball.x + ball.radius > FIELD.right) {
+      hitEdge ||= ball.vx > 30;
+      ball.x = FIELD.right - ball.radius;
+      ball.vx = -Math.abs(ball.vx) * BALL_EDGE_RESTITUTION;
+    }
+    if (ball.y - ball.radius < FIELD.top) {
+      hitEdge ||= ball.vy < -30;
+      ball.y = FIELD.top + ball.radius;
+      ball.vy = Math.abs(ball.vy) * BALL_EDGE_RESTITUTION;
+    }
+    if (ball.y + ball.radius > FIELD.bottom) {
+      hitEdge ||= ball.vy > 30;
+      ball.y = FIELD.bottom - ball.radius;
+      ball.vy = -Math.abs(ball.vy) * BALL_EDGE_RESTITUTION;
+    }
+    if (hitEdge) playSound('edge');
   }
 
   function settleImmediately() {
@@ -1207,15 +1184,6 @@
           actionLabel: isCard ? 'Continuar' : 'Fechar',
         },
       );
-    } else if (outcome?.type === 'out') {
-      state.teamFoulStreak[actingTeam] = 0;
-      playSound('whistle');
-      const restart = prepareRestart(outcome, actingTeam);
-      state.phase = 'ready';
-      showBanner(restart.message, 'neutral', 3000, {
-        dismissible: true,
-        actionLabel: 'Fechar',
-      });
     } else if (state.ballTouched && !state.ownBlock) {
       state.teamFoulStreak[actingTeam] = 0;
       state.touchesUsed += 1;
@@ -1242,66 +1210,6 @@
     state.activeTeam = 1 - state.activeTeam;
     state.touchesUsed = 0;
     state.phase = 'ready';
-  }
-
-  function prepareRestart(outcome, actingTeam) {
-    const lastTouch = state.lastTouchedPlayer || { team: state.lastTouchedTeam ?? actingTeam, number: null };
-    const isTouchline = outcome.side === 'top' || outcome.side === 'bottom';
-    let type;
-    let receivingTeam;
-
-    if (isTouchline) {
-      type = 'throwIn';
-      receivingTeam = 1 - lastTouch.team;
-    } else {
-      const defendingTeam = outcome.side === 'left' ? 0 : 1;
-      if (lastTouch.team === defendingTeam) {
-        type = 'corner';
-        receivingTeam = 1 - defendingTeam;
-      } else {
-        type = 'goalKick';
-        receivingTeam = defendingTeam;
-      }
-    }
-
-    state.activeTeam = receivingTeam;
-    state.touchesUsed = 0;
-    state.restart = { type, team: receivingTeam, side: outcome.side, lastTouch };
-    placeRestartBall(outcome, type, receivingTeam);
-    const contact = `${sideLabel(lastTouch.team)}${lastTouch.number ? ` #${lastTouch.number}` : ''}`;
-    const title = type === 'throwIn' ? 'Lateral' : type === 'corner' ? 'Escanteio' : 'Tiro de meta';
-    return { type, message: `${title} para ${sideLabel(receivingTeam)} · último toque ${contact}` };
-  }
-
-  function placeRestartBall(outcome, type, receivingTeam) {
-    const ball = state.ball;
-    const inset = ball.radius + 9;
-    if (type === 'throwIn') {
-      ball.x = Math.min(FIELD.right - inset, Math.max(FIELD.left + inset, outcome.x));
-      ball.y = outcome.side === 'top' ? FIELD.top + inset : FIELD.bottom - inset;
-    } else if (type === 'corner') {
-      ball.x = outcome.side === 'left' ? FIELD.left + inset : FIELD.right - inset;
-      ball.y = outcome.y < HEIGHT / 2 ? FIELD.top + inset : FIELD.bottom - inset;
-    } else {
-      ball.x = receivingTeam === 0 ? FIELD.left + inset : GOAL_AREA.rightStart + inset;
-      ball.y = GOAL_AREA.top + inset;
-    }
-
-    for (let attempt = 0; attempt < 24; attempt += 1) {
-      const overlaps = state.players.some((player) => distance(ball, player) < ball.radius + player.radius + 7);
-      if (!overlaps) break;
-      if (type === 'throwIn') {
-        ball.x += 55;
-        if (ball.x > FIELD.right - inset) ball.x = FIELD.left + inset;
-      } else {
-        ball.y += 55;
-        if (ball.y > FIELD.bottom - inset) ball.y = FIELD.top + inset;
-      }
-    }
-    ball.vx = 0;
-    ball.vy = 0;
-    state.lastTouchedTeam = null;
-    state.lastTouchedPlayer = null;
   }
 
   function isMatchOver() { return state.score.some((score) => score >= 3) || state.shots >= 40; }
@@ -1424,13 +1332,6 @@
       ui.teamFouls[team].textContent = state.teamFouls[team];
     }
     ui.shotCount.textContent = state.shots;
-    const restartName = state.restart?.type === 'throwIn'
-      ? 'Lateral'
-      : state.restart?.type === 'corner'
-        ? 'Escanteio'
-        : state.restart?.type === 'goalKick'
-          ? 'Tiro de meta'
-          : null;
     const onlineTurnLabel = online.enabled
       ? state.activeTeam === online.side
         ? `Sua vez · ${sideLabel(state.activeTeam)}`
@@ -1438,13 +1339,8 @@
       : `Vez de ${sideLabel(state.activeTeam)}`;
     ui.turnText.textContent = state.phase === 'moving'
       ? 'Lance em movimento…'
-      : restartName
-        ? `${restartName} · ${sideLabel(state.activeTeam)}`
-        : onlineTurnLabel;
+      : onlineTurnLabel;
     ui.turnStrip.classList.toggle('team-1', state.activeTeam === 1);
-    const directRestart = ['throwIn', 'corner', 'goalKick'].includes(state.restart?.type);
-    ui.boardWrap.classList.toggle('focus-left', directRestart && state.ball.x < WIDTH * 0.3);
-    ui.boardWrap.classList.toggle('focus-right', directRestart && state.ball.x > WIDTH * 0.7);
     ui.cards[0].classList.toggle('is-inactive', state.activeTeam !== 0);
     ui.cards[1].classList.toggle('is-inactive', state.activeTeam !== 1);
     const remaining = 3 - state.touchesUsed;
@@ -1454,8 +1350,6 @@
       ? '<strong>Aguarde:</strong> o lance termina quando todas as peças pararem.'
       : online.enabled && state.phase === 'ready' && state.activeTeam !== online.side
         ? '<strong>Partida online:</strong> aguarde a jogada do adversário.'
-      : ['throwIn', 'corner', 'goalKick'].includes(state.restart?.type)
-        ? `<strong>${restartName}:</strong> arraste a própria bola para trás e solte para cobrar.`
         : '<strong>Como jogar:</strong> arraste um botão para trás e solte para lançar.';
   }
 
@@ -1884,6 +1778,6 @@
     closeCurrentBanner,
     clearBannerQueue,
     online,
-    constants: { WIDTH, HEIGHT, FIELD, GOAL, GOAL_LINE, PENALTY_AREA, GOAL_AREA, FRICTION, STOP_SPEED, MAX_SPEED, MAX_DRAG, DIRECT_BALL_MAX_DRAG, CARD_THRESHOLD, TEAM_OPTIONS },
+    constants: { WIDTH, HEIGHT, FIELD, GOAL, GOAL_LINE, PENALTY_AREA, FRICTION, STOP_SPEED, MAX_SPEED, MAX_DRAG, BALL_EDGE_RESTITUTION, CARD_THRESHOLD, TEAM_OPTIONS },
   };
 })();

@@ -27,19 +27,28 @@ assert.equal(
 );
 runUntilSettled(game);
 
-const outGame = new ServerGame({ starter: 0 });
-outGame.state.phase = 'moving';
-outGame.state.lastTouchedTeam = 0;
-outGame.state.lastTouchedPlayer = { team: 0, number: 10 };
-outGame.state.ball.x = 724;
-outGame.state.ball.y = constants.FIELD.top - outGame.state.ball.radius - 1;
-outGame.state.ball.vy = -120;
-outGame.update(1 / 120, Date.now());
-assert.equal(outGame.state.restart.type, 'throwIn', 'o servidor deve marcar lateral');
-assert.equal(outGame.state.activeTeam, 1, 'o lateral deve ir para o adversário do último toque');
+const reboundGame = new ServerGame({ starter: 0 });
+reboundGame.state.phase = 'moving';
+reboundGame.state.ball.x = 724;
+reboundGame.state.ball.y = constants.FIELD.top + reboundGame.state.ball.radius - 1;
+reboundGame.state.ball.vy = -120;
+reboundGame.update(1 / 120, Date.now());
+assert.equal(
+  reboundGame.state.ball.y,
+  constants.FIELD.top + reboundGame.state.ball.radius,
+  'o servidor deve manter a bola dentro da lateral superior',
+);
+assert.ok(reboundGame.state.ball.vy > 0, 'o servidor deve refletir a bola para dentro do campo');
+assert.equal(reboundGame.state.activeTeam, 0, 'o rebote não deve trocar a equipe ativa');
 assert.ok(
-  outGame.drainEvents().some((event) => event.type === 'ball-out'),
-  'o servidor deve publicar o evento de bola fora',
+  reboundGame.drainEvents().some((event) => event.type === 'sound' && event.sound === 'edge'),
+  'o servidor deve publicar o som de impacto da bola na borda',
+);
+reboundGame.state.phase = 'ready';
+assert.equal(
+  reboundGame.shoot(0, { bodyType: 'ball', dx: 100, dy: 0, drag: 100 }).ok,
+  false,
+  'o servidor não deve permitir cobrança direta na bola',
 );
 
 const goalGame = new ServerGame({ starter: 0 });
