@@ -276,6 +276,40 @@ if (!mobile) {
   );
 }
 
+const cancelledGoal = await evaluate(`(() => {
+  const api = window.__copaBotao;
+  api.clearBannerQueue();
+  const offender = api.state.players.find(
+    (player) => player.team === api.state.activeTeam && player.number === 6,
+  );
+  const scoreBefore = [...api.state.score];
+  api.state.launchPlayer = offender;
+  api.state.foul = true;
+  api.state.foulImpactSpeed = api.constants.CARD_THRESHOLD.yellow + 1;
+  api.state.pendingOutcome = { type: 'goal', team: api.state.activeTeam };
+  api.state.phase = 'moving';
+  api.evaluatePlay();
+  return {
+    scoreBefore,
+    scoreAfter: [...api.state.score],
+    offenderTeam: offender.team,
+    yellow: offender.discipline.yellow,
+    message: document.querySelector('#eventBannerText').textContent,
+  };
+})()`);
+assert.deepEqual(cancelledGoal.scoreAfter, cancelledGoal.scoreBefore, 'o gol provocado depois de uma falta deve ser anulado');
+assert.equal(cancelledGoal.yellow, 1, 'a colisão média que anulou o gol deve gerar cartão amarelo');
+assert.ok(cancelledGoal.message.startsWith('Gol anulado · Cartão amarelo'), 'o aviso deve explicar o gol anulado e o cartão');
+await evaluate(`(() => {
+  const api = window.__copaBotao;
+  api.closeCurrentBanner();
+  const team = ${cancelledGoal.offenderTeam};
+  api.state.discipline[team][6].yellow = 0;
+  api.state.discipline[team][6].fouls = 0;
+  api.state.teamFouls[team] = 0;
+  api.state.teamFoulStreak[team] = 0;
+})()`);
+
 await evaluate(`(() => {
   const api = window.__copaBotao;
   api.resetFormation();
@@ -301,6 +335,11 @@ assert.equal(
 await evaluate(`(() => {
   const api = window.__copaBotao;
   api.resetFormation();
+  for (const player of api.state.players) {
+    if (player.team !== api.state.activeTeam && Math.abs(player.y - api.state.ball.y) < 100) {
+      player.y += 180;
+    }
+  }
   api.state.phase = 'ready';
 })()`);
 
@@ -311,13 +350,21 @@ const rect = await evaluate(`(() => {
 const playerPosition = await evaluate(`(() => {
   const api = window.__copaBotao;
   const player = api.state.players.find((item) => item.team === api.state.activeTeam && item.number === 10);
-  return { x: player.x, y: player.y };
+  return { x: player.x, y: player.y, ballX: api.state.ball.x, ballY: api.state.ball.y };
 })()`);
 const start = {
   x: rect.left + (playerPosition.x / 1448) * rect.width,
   y: rect.top + (playerPosition.y / 1086) * rect.height,
 };
-const pull = { x: start.x - 80, y: start.y };
+const ballDirection = {
+  x: playerPosition.ballX - playerPosition.x,
+  y: playerPosition.ballY - playerPosition.y,
+};
+const ballDirectionLength = Math.hypot(ballDirection.x, ballDirection.y);
+const pull = {
+  x: start.x - (ballDirection.x / ballDirectionLength) * 80,
+  y: start.y - (ballDirection.y / ballDirectionLength) * 80,
+};
 
 assert.equal(
   await evaluate(`document.elementFromPoint(${start.x}, ${start.y})?.id`),
@@ -356,6 +403,17 @@ await new Promise((resolve) => setTimeout(resolve, 150));
 
 assert.equal(await evaluate('window.__copaBotao.state.shots'), 1, 'arrastar e soltar deve registrar um lance');
 assert.equal(await evaluate('window.__copaBotao.state.shotCurve'), 1, 'o lance deve preservar a curva escolhida durante o movimento');
+await evaluate(`new Promise((resolve) => {
+  const api = window.__copaBotao;
+  const deadline = performance.now() + 1200;
+  const check = () => {
+    if (api.state.ballCurve === 1 || performance.now() >= deadline) resolve();
+    else setTimeout(check, 20);
+  };
+  check();
+})`);
+assert.equal(await evaluate('window.__copaBotao.state.ballCurve'), 1, 'o atacante deve transferir a curva escolhida para a bola');
+assert.ok(await evaluate('Math.abs(window.__copaBotao.state.ball.vy) > 0.1'), 'a bola deve sair da trajetória reta após o contato');
 assert.equal(await evaluate("document.querySelector('#curveControl').hidden"), true, 'os controles de curva devem sumir depois do chute');
 assert.notEqual(await evaluate('window.__copaBotao.state.phase'), 'aiming', 'soltar deve encerrar a mira');
 

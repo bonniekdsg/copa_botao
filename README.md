@@ -59,13 +59,13 @@ Mantenha apenas uma instância enquanto o jogo não usar armazenamento compartil
 
 - Pressione um botão do time da vez.
 - Arraste na direção oposta ao lance e solte.
-- Para fazer uma curva com os atacantes 9, 10 ou 11, toque uma vez no botão, escolha **Esquerda**, **Reta** ou **Direita** e então faça o arraste. A linha de mira mostra a trajetória escolhida.
+- Para fazer uma curva com os atacantes 9, 10 ou 11, toque uma vez no botão, escolha **Esquerda**, **Reta** ou **Direita** e então faça o arraste. O botão segue reto até o contato e transfere o efeito para a bola; a linha de mira mostra os dois trechos da trajetória.
 - Use `Esc` ou **Cancelar mira** para desistir antes de soltar.
 - Cada toque válido na bola mantém a posse, até o limite de três.
 - A bola rebate nas laterais e no fundo do campo, permanecendo em jogo.
 - Os rebotes nas bordas perdem parte da velocidade e produzem o efeito sonoro de impacto.
 - Cada goleiro pode ser lançado normalmente, mas permanece dentro da grande área do seu time.
-- Atingir um rival antes da bola é falta. Impactos médios geram amarelo, impactos fortes geram vermelho direto e o segundo amarelo expulsa o botão.
+- Atingir um rival antes da bola é falta. Se a colisão empurrar o rival contra a bola e ela entrar, o gol é anulado. Impactos médios geram amarelo, impactos fortes geram vermelho direto e o segundo amarelo expulsa o botão.
 
 Faltas simples exibem um aviso por 3,5 segundos e cartões, por 5 segundos. Os avisos entram em uma fila para não se sobrescreverem e podem ser fechados antes. Alertas de conexão permanecem visíveis até a reconexão.
 

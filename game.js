@@ -15,7 +15,8 @@
   const MAX_DRAG = 205;
   const MAX_SPEED = 1420;
   const BALL_EDGE_RESTITUTION = 0.68;
-  const CURVE_RATE = 0.72;
+  const BALL_CURVE_RATE = 0.58;
+  const BALL_CURVE_MAX_ANGLE = Math.PI * (25 / 180);
   const CURVE_ATTACKERS = [9, 10, 11];
   const CARD_THRESHOLD = { yellow: MAX_SPEED * 0.3, red: MAX_SPEED * 0.7 };
   const STOP_SPEED = 14;
@@ -118,6 +119,9 @@
     dragPoint: null,
     aimCurve: 0,
     shotCurve: 0,
+    ballCurve: 0,
+    ballCurveRemaining: 0,
+    ballCurveSource: null,
     launchPlayer: null,
     ballTouched: false,
     firstContact: null,
@@ -632,6 +636,7 @@
     state.ball = { type: 'ball', x: WIDTH / 2, y: HEIGHT / 2, vx: 0, vy: 0, radius: BALL_RADIUS, mass: 0.72 };
     state.aimCurve = 0;
     state.shotCurve = 0;
+    clearBallCurve();
     clearAim();
   }
 
@@ -885,6 +890,7 @@
       }
       return;
     }
+    clearBallCurve();
     state.selected.vx = (dx / drag) * speed;
     state.selected.vy = (dy / drag) * speed;
     state.launchPlayer = state.selected;
@@ -935,15 +941,7 @@
     const bodies = [...state.players, state.ball];
     const previousBall = { x: state.ball.x, y: state.ball.y };
     for (const body of bodies) {
-      if (body === state.launchPlayer && state.firstContact === null && state.shotCurve !== 0) {
-        const angle = state.shotCurve * CURVE_RATE * dt;
-        const cosine = Math.cos(angle);
-        const sine = Math.sin(angle);
-        const vx = body.vx;
-        const vy = body.vy;
-        body.vx = vx * cosine - vy * sine;
-        body.vy = vx * sine + vy * cosine;
-      }
+      if (body === state.ball) applyBallCurve(dt);
       body.x += body.vx * dt;
       body.y += body.vy * dt;
       const speed = Math.hypot(body.vx, body.vy);
@@ -1026,6 +1024,38 @@
     if (hitEdge) playSound('edge');
   }
 
+  function clearBallCurve() {
+    state.ballCurve = 0;
+    state.ballCurveRemaining = 0;
+    state.ballCurveSource = null;
+  }
+
+  function startBallCurve(source) {
+    if (!state.shotCurve || !canCurve(source)) return;
+    state.ballCurve = state.shotCurve;
+    state.ballCurveRemaining = BALL_CURVE_MAX_ANGLE;
+    state.ballCurveSource = source;
+  }
+
+  function applyBallCurve(dt) {
+    const ball = state.ball;
+    if (!ball || state.ballCurve === 0 || state.ballCurveRemaining <= 0) return;
+    if (Math.hypot(ball.vx, ball.vy) < STOP_SPEED) {
+      clearBallCurve();
+      return;
+    }
+    const step = Math.min(BALL_CURVE_RATE * dt, state.ballCurveRemaining);
+    const angle = state.ballCurve * step;
+    const cosine = Math.cos(angle);
+    const sine = Math.sin(angle);
+    const vx = ball.vx;
+    const vy = ball.vy;
+    ball.vx = vx * cosine - vy * sine;
+    ball.vy = vx * sine + vy * cosine;
+    state.ballCurveRemaining -= step;
+    if (state.ballCurveRemaining <= 0.0001) clearBallCurve();
+  }
+
   function resolveCollision(a, b) {
     const dx = b.x - a.x;
     const dy = b.y - a.y;
@@ -1057,6 +1087,10 @@
       b.vy += (impulse / b.mass) * ny;
     }
     registerContact(a, b, nx, ny, Math.max(0, -relative));
+    if (state.ballCurve !== 0) {
+      const player = a.type === 'ball' ? b : b.type === 'ball' ? a : null;
+      if (player?.type === 'player' && player !== state.ballCurveSource) clearBallCurve();
+    }
   }
 
   function registerContact(a, b, nx, ny, impactSpeed) {
@@ -1075,6 +1109,7 @@
             state.ball.vy += ny * direction * 155;
             showBanner('Chute!', 'neutral', 600);
           }
+          startBallCurve(launched);
         }
         state.ballTouched = true;
       }
@@ -1152,6 +1187,7 @@
 
   function settleImmediately() {
     for (const body of [...state.players, state.ball]) { body.vx = 0; body.vy = 0; }
+    clearBallCurve();
     canvas.classList.remove('locked');
     state.stillFrames = 0;
   }
@@ -1202,7 +1238,7 @@
     const outcome = state.pendingOutcome;
     const actingTeam = state.activeTeam;
 
-    if (outcome?.type === 'goal') {
+    if (outcome?.type === 'goal' && !state.foul) {
       state.teamFoulStreak[actingTeam] = 0;
       state.score[outcome.team] += 1;
       state.activeTeam = 1 - outcome.team;
@@ -1220,6 +1256,7 @@
 
     if (state.foul) {
       const decision = applyDiscipline();
+      const cancelledGoal = outcome?.type === 'goal';
       if (decision.forfeit) {
         state.score[1 - decision.team] = 3;
         showBanner(`Time sem jogadores · vitória de ${sideLabel(1 - decision.team)}`, 'danger', 1800);
@@ -1230,7 +1267,7 @@
       switchTurn();
       const isCard = decision.type === 'yellow' || decision.type === 'red';
       showBanner(
-        decision.text,
+        `${cancelledGoal ? 'Gol anulado · ' : ''}${decision.text}`,
         decision.type === 'yellow' ? 'yellow' : decision.type === 'red' ? 'danger' : 'neutral',
         isCard ? 5000 : 3500,
         {
@@ -1300,6 +1337,7 @@
 
   function finishMatch() {
     state.shotCurve = 0;
+    clearBallCurve();
     state.phase = 'finished';
     stopCrowdAmbient();
     playSound('final');
@@ -1407,7 +1445,7 @@
       : online.enabled && state.phase === 'ready' && state.activeTeam !== online.side
         ? '<strong>Partida online:</strong> aguarde a jogada do adversário.'
         : canCurve(state.selected)
-          ? `<strong>Atacante #${state.selected.number}:</strong> escolha esquerda, reta ou direita e arraste para chutar.`
+          ? `<strong>Atacante #${state.selected.number}:</strong> escolha o efeito e mire reto na bola; a linha laranja prevê a curva.`
         : '<strong>Como jogar:</strong> arraste um botão para trás e solte para lançar.';
   }
 
@@ -1533,12 +1571,21 @@
     const startX = player.x + nx * (player.radius + 8);
     const startY = player.y + ny * (player.radius + 8);
     const curve = canCurve(player) ? state.aimCurve : 0;
-    const perpendicularX = -ny;
-    const perpendicularY = nx;
-    let endX = player.x + nx * projected;
-    let endY = player.y + ny * projected;
-    let tangentX = nx;
-    let tangentY = ny;
+    const toBallX = state.ball.x - player.x;
+    const toBallY = state.ball.y - player.y;
+    const alongPath = toBallX * nx + toBallY * ny;
+    const lateralPath = Math.abs(toBallX * ny - toBallY * nx);
+    const contactRadius = player.radius + state.ball.radius;
+    const reachesBall = alongPath > 0 && lateralPath <= contactRadius;
+    const contactDistance = reachesBall
+      ? alongPath - Math.sqrt(Math.max(0, contactRadius * contactRadius - lateralPath * lateralPath))
+      : Infinity;
+    const launchSpeed = (Math.min(drag, MAX_DRAG) / MAX_DRAG) * MAX_SPEED;
+    const estimatedTravel = (launchSpeed * launchSpeed) / (2 * FRICTION.player);
+    const predictsBallContact = contactDistance <= estimatedTravel;
+    const playerPathLength = predictsBallContact ? Math.max(player.radius + 8, contactDistance) : projected;
+    const endX = player.x + nx * playerPathLength;
+    const endY = player.y + ny * playerPathLength;
 
     ctx.save();
     ctx.setLineDash([10, 10]);
@@ -1546,25 +1593,48 @@
     ctx.strokeStyle = 'rgba(196,244,94,.9)';
     ctx.beginPath();
     ctx.moveTo(startX, startY);
-    if (curve === 0) {
-      ctx.lineTo(endX, endY);
-    } else {
-      const controlX = startX + nx * projected * 0.56;
-      const controlY = startY + ny * projected * 0.56;
-      endX = startX + nx * projected * 0.84 + perpendicularX * curve * projected * 0.46;
-      endY = startY + ny * projected * 0.84 + perpendicularY * curve * projected * 0.46;
-      ctx.quadraticCurveTo(controlX, controlY, endX, endY);
-      const tangentLength = Math.hypot(endX - controlX, endY - controlY) || 1;
-      tangentX = (endX - controlX) / tangentLength;
-      tangentY = (endY - controlY) / tangentLength;
-    }
+    ctx.lineTo(endX, endY);
     ctx.stroke();
+
+    let arrowX = endX;
+    let arrowY = endY;
+    let tangentX = nx;
+    let tangentY = ny;
+    let arrowColor = '#c4f45e';
+    if (predictsBallContact && curve !== 0) {
+      const contactCenterX = player.x + nx * contactDistance;
+      const contactCenterY = player.y + ny * contactDistance;
+      const impactX = state.ball.x - contactCenterX;
+      const impactY = state.ball.y - contactCenterY;
+      const impactLength = Math.hypot(impactX, impactY) || 1;
+      const ballNx = impactX / impactLength;
+      const ballNy = impactY / impactLength;
+      const perpendicularX = -ballNy;
+      const perpendicularY = ballNx;
+      const previewLength = 205;
+      const ballStartX = state.ball.x + ballNx * (state.ball.radius + 7);
+      const ballStartY = state.ball.y + ballNy * (state.ball.radius + 7);
+      const controlX = ballStartX + ballNx * previewLength * 0.55;
+      const controlY = ballStartY + ballNy * previewLength * 0.55;
+      arrowX = ballStartX + ballNx * previewLength * 0.88 + perpendicularX * curve * previewLength * 0.36;
+      arrowY = ballStartY + ballNy * previewLength * 0.88 + perpendicularY * curve * previewLength * 0.36;
+      const tangentLength = Math.hypot(arrowX - controlX, arrowY - controlY) || 1;
+      tangentX = (arrowX - controlX) / tangentLength;
+      tangentY = (arrowY - controlY) / tangentLength;
+      arrowColor = '#ffbd2e';
+      ctx.strokeStyle = 'rgba(255,189,46,.95)';
+      ctx.beginPath();
+      ctx.moveTo(ballStartX, ballStartY);
+      ctx.quadraticCurveTo(controlX, controlY, arrowX, arrowY);
+      ctx.stroke();
+    }
+
     ctx.setLineDash([]);
-    ctx.fillStyle = '#c4f45e';
+    ctx.fillStyle = arrowColor;
     ctx.beginPath();
-    ctx.moveTo(endX + tangentX * 14, endY + tangentY * 14);
-    ctx.lineTo(endX - tangentY * 11, endY + tangentX * 11);
-    ctx.lineTo(endX + tangentY * 11, endY - tangentX * 11);
+    ctx.moveTo(arrowX + tangentX * 14, arrowY + tangentY * 14);
+    ctx.lineTo(arrowX - tangentY * 11, arrowY + tangentX * 11);
+    ctx.lineTo(arrowX + tangentY * 11, arrowY - tangentX * 11);
     ctx.closePath();
     ctx.fill();
 
@@ -1859,6 +1929,6 @@
     closeCurrentBanner,
     clearBannerQueue,
     online,
-    constants: { WIDTH, HEIGHT, FIELD, GOAL, GOAL_LINE, PENALTY_AREA, FRICTION, STOP_SPEED, MAX_SPEED, MAX_DRAG, BALL_EDGE_RESTITUTION, CURVE_RATE, CURVE_ATTACKERS, CARD_THRESHOLD, TEAM_OPTIONS },
+    constants: { WIDTH, HEIGHT, FIELD, GOAL, GOAL_LINE, PENALTY_AREA, FRICTION, STOP_SPEED, MAX_SPEED, MAX_DRAG, BALL_EDGE_RESTITUTION, BALL_CURVE_RATE, BALL_CURVE_MAX_ANGLE, CURVE_ATTACKERS, CARD_THRESHOLD, TEAM_OPTIONS },
   };
 })();

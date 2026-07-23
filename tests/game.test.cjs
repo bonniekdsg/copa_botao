@@ -117,8 +117,8 @@ assert.equal(game.aimCurve, 1, 'a escolha da curva deve ficar registrada na mira
 game.selected = game.players.find((player) => player.team === 0 && player.number === 8);
 game.aimCurve = 0;
 assert.equal(api.setAimCurve(1), false, 'um jogador que não seja 9, 10 ou 11 não deve aceitar curva');
-curveAttacker.x = 724;
-curveAttacker.y = 100;
+curveAttacker.x = game.ball.x - curveAttacker.radius - game.ball.radius - 2;
+curveAttacker.y = game.ball.y;
 curveAttacker.vx = 500;
 curveAttacker.vy = 0;
 game.launchPlayer = curveAttacker;
@@ -126,7 +126,10 @@ game.shotCurve = 1;
 game.firstContact = null;
 game.phase = 'moving';
 api.update(1 / 120);
-assert.ok(curveAttacker.vy > 0, 'a física local deve curvar a trajetória do atacante para a direita');
+assert.ok(Math.abs(curveAttacker.vy) < 0.001, 'o atacante deve seguir reto até tocar a bola');
+assert.equal(game.ballCurve, 1, 'o atacante 10 deve transferir a curva escolhida para a bola');
+api.update(1 / 120);
+assert.ok(game.ball.vy > 0, 'a física local deve curvar a trajetória da bola para a direita depois do contato');
 api.resetFormation();
 game.phase = 'ready';
 
@@ -159,6 +162,15 @@ game.foul = true;
 api.evaluatePlay();
 assert.equal(game.activeTeam, 0, 'a falta entrega a posse ao adversário');
 assert.equal(game.teamFouls[1], 1, 'a falta deve entrar no total da equipe');
+
+prepareMoving();
+const scoreBeforeCancelledGoal = [...game.score];
+game.foul = true;
+game.foulImpactSpeed = 100;
+game.pendingOutcome = { type: 'goal', team: game.activeTeam };
+api.evaluatePlay();
+assert.deepEqual(game.score, scoreBeforeCancelledGoal, 'um gol originado após atingir o adversário deve ser anulado');
+assert.equal(game.phase, 'ready', 'a falta deve ter prioridade sobre a comemoração do gol');
 
 prepareMoving();
 const teamBeforeRightRebound = game.activeTeam;

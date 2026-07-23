@@ -95,7 +95,7 @@ Estas regras definem o comportamento esperado do MVP. Onde o futebol de botão t
 
 - O jogador seleciona um botão seu. A **palheta** aparece atrás do botão (do lado oposto à direção desejada).
 - **Mirar e dar força:** o jogador arrasta o cursor/toque para definir **direção** (linha do botão até o ponto de mira) e **força** (distância/deslocamento do arraste, com um teto máximo).
-- **Curvar com os atacantes:** os botões 9, 10 e 11 podem usar trajetória curva para a esquerda ou direita, além da trajetória reta. O usuário toca no atacante, escolhe o tipo de trajetória e faz o arraste; a linha de mira acompanha a curva. A rotação da trajetória termina no primeiro contato do botão.
+- **Curvar com os atacantes:** os botões 9, 10 e 11 podem aplicar efeito à bola para a esquerda ou direita, além do chute reto. O usuário toca no atacante, escolhe o tipo de trajetória e faz o arraste. O botão segue reto até o contato; depois, a bola curva de forma progressiva por um ângulo limitado. A previsão visual distingue o caminho reto do botão e a trajetória curva da bola. O efeito termina ao tocar outro botão.
 - **Empurrar (condução):** lances de força baixa/média servem para **empurrar o botão em direção à bola** e conduzi-la pelo campo.
 - **Chutar:** quando o botão que toca a bola está dentro de uma **região de finalização** definida (ex.: dentro ou próximo à grande área adversária), o contato botão→bola é tratado como **chute**, transferindo mais energia à bola em direção ao gol. Fora dessa região, o contato é um **passe/condução** comum.
 - Ao **soltar**, o botão é lançado; nenhum novo comando é aceito até tudo parar.
@@ -106,6 +106,7 @@ Estas regras definem o comportamento esperado do MVP. Onde o futebol de botão t
 - Consequência da falta no MVP: **a posse passa ao adversário**, que ganha um **lance livre** a partir da posição da bola (ou da posição da infração — definir; ver Q3). Faltas dentro da grande área podem gerar **pênalti** (opcional para o MVP; ver Q4).
 - A gravidade considera a velocidade relativa do impacto: abaixo de 30% da velocidade máxima é falta comum, de 30% a 70% gera amarelo e acima de 70% gera vermelho direto.
 - O segundo amarelo do mesmo botão resulta em vermelho. A terceira falta total da equipe ou a segunda falta consecutiva também força pelo menos um amarelo.
+- A falta tem prioridade sobre o gol: se o botão lançado atingir primeiro um adversário e esse adversário desviar a bola para dentro do gol, o gol é anulado e a punição disciplinar considera a força do impacto inicial.
 - Um botão expulso é retirado até o fim da partida, inclusive após gols e reposicionamentos.
 - Encostar o próprio botão em outro **botão do próprio time** antes da bola **não** é falta, mas encerra o turno (lance sem toque na bola) — ou é tratado conforme convenção escolhida (Q5).
 - Tocar a bola **primeiro** e só depois colidir com botões é **jogada válida**.
@@ -148,7 +149,7 @@ Prioridade: **P0** = essencial para o MVP; **P1** = desejável no MVP se houver 
 | RF-05 | Exibir a palheta atrás do botão selecionado. | P0 |
 | RF-06 | Capturar arraste (mouse/toque) para definir direção e força, com indicador visual de mira e potência. | P0 |
 | RF-07 | Lançar o botão ao soltar, aplicando força proporcional ao arraste (com teto máximo). | P0 |
-| RF-07A | Permitir que os jogadores 9, 10 e 11 escolham trajetória curva à esquerda, reta ou curva à direita, com previsão visual e validação no servidor online. | P0 |
+| RF-07A | Permitir que os jogadores 9, 10 e 11 transfiram à bola efeito para a esquerda ou direita, ou façam o chute reto, com previsão visual em dois trechos e validação no servidor online. | P0 |
 | RF-08 | Simular física: movimento, atrito/desaceleração, colisões botão↔bola, botão↔botão, e ricochete nas bordas. | P0 |
 | RF-09 | Detectar quando todos os corpos pararam para encerrar o lance. | P0 |
 | RF-10 | Detectar contato botão↔bola e classificar como passe ou chute conforme a região de finalização. | P0 |

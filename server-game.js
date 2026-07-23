@@ -11,7 +11,8 @@ const BALL_RADIUS = 18;
 const MAX_DRAG = 205;
 const MAX_SPEED = 1420;
 const BALL_EDGE_RESTITUTION = 0.68;
-const CURVE_RATE = 0.72;
+const BALL_CURVE_RATE = 0.58;
+const BALL_CURVE_MAX_ANGLE = Math.PI * (25 / 180);
 const CURVE_ATTACKERS = [9, 10, 11];
 const CARD_THRESHOLD = { yellow: MAX_SPEED * 0.3, red: MAX_SPEED * 0.7 };
 const STOP_SPEED = 14;
@@ -36,6 +37,9 @@ class ServerGame {
       shots: 0,
       launchPlayer: null,
       shotCurve: 0,
+      ballCurve: 0,
+      ballCurveRemaining: 0,
+      ballCurveSource: null,
       ballTouched: false,
       firstContact: null,
       foul: false,
@@ -108,6 +112,7 @@ class ServerGame {
     };
     this.state.launchPlayer = null;
     this.state.shotCurve = 0;
+    this.clearBallCurve();
   }
 
   teamName(side) {
@@ -186,6 +191,7 @@ class ServerGame {
     if (vectorLength < 0.001 || drag < 12) return { ok: false, error: 'A força do lançamento é muito baixa.' };
 
     const speed = (drag / MAX_DRAG) * MAX_SPEED;
+    this.clearBallCurve();
     selected.vx = (dx / vectorLength) * speed;
     selected.vy = (dy / vectorLength) * speed;
     state.launchPlayer = selected;
@@ -217,15 +223,7 @@ class ServerGame {
     const bodies = [...state.players, state.ball];
     const previousBall = { x: state.ball.x, y: state.ball.y };
     for (const body of bodies) {
-      if (body === state.launchPlayer && state.firstContact === null && state.shotCurve !== 0) {
-        const angle = state.shotCurve * CURVE_RATE * dt;
-        const cosine = Math.cos(angle);
-        const sine = Math.sin(angle);
-        const vx = body.vx;
-        const vy = body.vy;
-        body.vx = vx * cosine - vy * sine;
-        body.vy = vx * sine + vy * cosine;
-      }
+      if (body === state.ball) this.applyBallCurve(dt);
       body.x += body.vx * dt;
       body.y += body.vy * dt;
       const speed = Math.hypot(body.vx, body.vy);
@@ -311,6 +309,40 @@ class ServerGame {
     }
   }
 
+  clearBallCurve() {
+    this.state.ballCurve = 0;
+    this.state.ballCurveRemaining = 0;
+    this.state.ballCurveSource = null;
+  }
+
+  startBallCurve(source) {
+    const state = this.state;
+    if (!state.shotCurve || !CURVE_ATTACKERS.includes(source?.number)) return;
+    state.ballCurve = state.shotCurve;
+    state.ballCurveRemaining = BALL_CURVE_MAX_ANGLE;
+    state.ballCurveSource = source;
+  }
+
+  applyBallCurve(dt) {
+    const state = this.state;
+    const ball = state.ball;
+    if (!ball || state.ballCurve === 0 || state.ballCurveRemaining <= 0) return;
+    if (Math.hypot(ball.vx, ball.vy) < STOP_SPEED) {
+      this.clearBallCurve();
+      return;
+    }
+    const step = Math.min(BALL_CURVE_RATE * dt, state.ballCurveRemaining);
+    const angle = state.ballCurve * step;
+    const cosine = Math.cos(angle);
+    const sine = Math.sin(angle);
+    const vx = ball.vx;
+    const vy = ball.vy;
+    ball.vx = vx * cosine - vy * sine;
+    ball.vy = vx * sine + vy * cosine;
+    state.ballCurveRemaining -= step;
+    if (state.ballCurveRemaining <= 0.0001) this.clearBallCurve();
+  }
+
   resolveCollision(a, b) {
     const dx = b.x - a.x;
     const dy = b.y - a.y;
@@ -348,6 +380,10 @@ class ServerGame {
       b.vy += (impulse / b.mass) * ny;
     }
     this.registerContact(a, b, nx, ny, Math.max(0, -relative));
+    if (this.state.ballCurve !== 0) {
+      const player = a.type === 'ball' ? b : b.type === 'ball' ? a : null;
+      if (player?.type === 'player' && player !== this.state.ballCurveSource) this.clearBallCurve();
+    }
   }
 
   registerContact(a, b, nx, ny, impactSpeed) {
@@ -366,6 +402,7 @@ class ServerGame {
           state.ball.vy += ny * direction * 155;
           this.emit('banner', { text: 'Chute!', kind: 'neutral', duration: 600 });
         }
+        if (!state.ballTouched) this.startBallCurve(launched);
         state.ballTouched = true;
       }
       return;
@@ -449,6 +486,7 @@ class ServerGame {
       body.vx = 0;
       body.vy = 0;
     }
+    this.clearBallCurve();
     this.state.stillFrames = 0;
   }
 
@@ -498,7 +536,7 @@ class ServerGame {
     const outcome = state.pendingOutcome;
     const actingTeam = state.activeTeam;
 
-    if (outcome?.type === 'goal') {
+    if (outcome?.type === 'goal' && !state.foul) {
       state.teamFoulStreak[actingTeam] = 0;
       state.score[outcome.team] += 1;
       state.activeTeam = 1 - outcome.team;
@@ -513,6 +551,7 @@ class ServerGame {
 
     if (state.foul) {
       const decision = this.applyDiscipline();
+      const cancelledGoal = outcome?.type === 'goal';
       if (decision.forfeit) {
         state.score[1 - decision.team] = 3;
         this.emit('banner', {
@@ -524,7 +563,12 @@ class ServerGame {
         return;
       }
       this.switchTurn();
-      this.emit('discipline', { ...decision, decisionType: decision.type });
+      this.emit('discipline', {
+        ...decision,
+        text: `${cancelledGoal ? 'Gol anulado · ' : ''}${decision.text}`,
+        decisionType: decision.type,
+        cancelledGoal,
+      });
     } else if (state.ballTouched && !state.ownBlock) {
       state.teamFoulStreak[actingTeam] = 0;
       state.touchesUsed += 1;
@@ -585,6 +629,7 @@ class ServerGame {
   finishMatch() {
     if (this.state.phase === 'finished') return;
     this.state.shotCurve = 0;
+    this.clearBallCurve();
     this.state.phase = 'finished';
     const [a, b] = this.state.score;
     const winner = a === b ? null : a > b ? 0 : 1;
@@ -610,7 +655,8 @@ module.exports = {
     MAX_DRAG,
     MAX_SPEED,
     BALL_EDGE_RESTITUTION,
-    CURVE_RATE,
+    BALL_CURVE_RATE,
+    BALL_CURVE_MAX_ANGLE,
     CURVE_ATTACKERS,
     CARD_THRESHOLD,
     STOP_SPEED,
